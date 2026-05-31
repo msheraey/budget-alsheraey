@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,17 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORIES, GROUP_LABELS, type CategoryGroup } from "@/lib/categories";
+import { addTransaction } from "@/lib/transactions-store";
 
 const GROUP_ORDER: CategoryGroup[] = ["income", "fixed", "variable", "savings"];
 
 export function AddTransactionDialog({ defaultMonth }: { defaultMonth: Date }) {
-  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<"expense" | "income">("expense");
   const [categoryId, setCategoryId] = useState<string>("");
@@ -42,34 +36,29 @@ export function AddTransactionDialog({ defaultMonth }: { defaultMonth: Date }) {
   const [note, setNote] = useState("");
   const [date, setDate] = useState(() => defaultMonth.toISOString().slice(0, 10));
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Not signed in");
-      const { error } = await supabase.from("transactions").insert({
-        user_id: u.user.id,
-        category: categoryId,
-        amount: Number(amount),
-        type,
-        occurred_on: date,
-        note: note || null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Transaction added");
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      setOpen(false);
-      setAmount("");
-      setNote("");
-      setCategoryId("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const visibleCats = CATEGORIES.filter((c) =>
     type === "income" ? c.group === "income" : c.group !== "income"
   );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryId || !amount) {
+      toast.error("Pick a category and amount");
+      return;
+    }
+    addTransaction({
+      category: categoryId,
+      amount: Number(amount),
+      type,
+      occurred_on: date,
+      note: note || null,
+    });
+    toast.success("Transaction added");
+    setOpen(false);
+    setAmount("");
+    setNote("");
+    setCategoryId("");
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -85,17 +74,7 @@ export function AddTransactionDialog({ defaultMonth }: { defaultMonth: Date }) {
           <DialogDescription>Track an expense or income against your budget.</DialogDescription>
         </DialogHeader>
 
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!categoryId || !amount) {
-              toast.error("Pick a category and amount");
-              return;
-            }
-            mutation.mutate();
-          }}
-        >
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <Tabs value={type} onValueChange={(v) => { setType(v as "expense" | "income"); setCategoryId(""); }}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="expense">Expense</TabsTrigger>
@@ -145,9 +124,7 @@ export function AddTransactionDialog({ defaultMonth }: { defaultMonth: Date }) {
           </div>
 
           <DialogFooter>
-            <Button type="submit" disabled={mutation.isPending} className="bg-gradient-primary">
-              {mutation.isPending ? "Saving..." : "Save"}
-            </Button>
+            <Button type="submit" className="bg-gradient-primary">Save</Button>
           </DialogFooter>
         </form>
       </DialogContent>
