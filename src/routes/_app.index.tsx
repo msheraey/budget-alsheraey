@@ -31,10 +31,29 @@ export const Route = createFileRoute("/_app/")({
 });
 
 function Dashboard() {
+  // Budget tracking starts June 2026
+  const START_YEAR = 2026;
+  const START_MONTH = 5; // June (0-indexed)
+  const MONTH_OPTIONS = Array.from({ length: 24 }, (_, i) => {
+    const d = new Date(Date.UTC(START_YEAR, START_MONTH + i, 1));
+    return {
+      key: `${d.getUTCFullYear()}-${d.getUTCMonth()}`,
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth(),
+      label: `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+    };
+  });
+
   const [cursor, setCursor] = useState(() => {
     const n = new Date();
-    return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), 1));
+    const y = n.getUTCFullYear();
+    const m = n.getUTCMonth();
+    const before = y < START_YEAR || (y === START_YEAR && m < START_MONTH);
+    return before
+      ? new Date(Date.UTC(START_YEAR, START_MONTH, 1))
+      : new Date(Date.UTC(y, m, 1));
   });
+
 
   const all = useTransactions();
   const startStr = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1))
