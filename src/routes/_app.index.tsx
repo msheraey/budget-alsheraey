@@ -1,8 +1,14 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, Wallet, PiggyBank } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { TrendingDown, TrendingUp, Wallet, PiggyBank } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
 import {
   CATEGORIES,
@@ -12,6 +18,7 @@ import {
   type CategoryGroup,
 } from "@/lib/categories";
 import { useTransactions } from "@/lib/transactions-store";
+
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({
