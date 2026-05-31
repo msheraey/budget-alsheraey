@@ -97,31 +97,25 @@ function Dashboard() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-xl border border-border/60 bg-card/60 p-1 backdrop-blur">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              onClick={() => setCursor((c) => new Date(Date.UTC(c.getUTCFullYear(), c.getUTCMonth() - 1, 1)))}
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="min-w-[7rem] px-2 text-center text-sm font-medium tabular-nums">
-              {MONTHS[cursor.getUTCMonth()].slice(0, 3)} {cursor.getUTCFullYear()}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              onClick={() => setCursor((c) => new Date(Date.UTC(c.getUTCFullYear(), c.getUTCMonth() + 1, 1)))}
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          <Select
+            value={`${cursor.getUTCFullYear()}-${cursor.getUTCMonth()}`}
+            onValueChange={(v) => {
+              const [y, m] = v.split("-").map(Number);
+              setCursor(new Date(Date.UTC(y, m, 1)));
+            }}
+          >
+            <SelectTrigger className="h-10 min-w-[10rem] rounded-xl border-border/60 bg-card/60 backdrop-blur">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTH_OPTIONS.map((o) => (
+                <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <AddTransactionDialog defaultMonth={cursor} />
         </div>
+
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
