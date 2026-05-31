@@ -1,14 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
 import { categoryById, formatAED } from "@/lib/categories";
+import { useTransactions, deleteTransaction } from "@/lib/transactions-store";
 
-export const Route = createFileRoute("/_authenticated/transactions")({
+export const Route = createFileRoute("/_app/transactions")({
   head: () => ({
     meta: [
       { title: "Transactions — Ledger" },
@@ -18,42 +17,13 @@ export const Route = createFileRoute("/_authenticated/transactions")({
   component: TransactionsPage,
 });
 
-type Txn = {
-  id: string;
-  category: string;
-  amount: number;
-  type: "income" | "expense";
-  occurred_on: string;
-  note: string | null;
-};
-
 function TransactionsPage() {
-  const qc = useQueryClient();
+  const txns = useTransactions();
 
-  const { data: txns = [], isLoading } = useQuery({
-    queryKey: ["transactions", "all"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("id, category, amount, type, occurred_on, note")
-        .order("occurred_on", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []).map((r) => ({ ...r, amount: Number(r.amount) })) as Txn[];
-    },
-  });
-
-  const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("transactions").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Deleted");
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const handleDelete = (id: string) => {
+    deleteTransaction(id);
+    toast.success("Deleted");
+  };
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -71,9 +41,7 @@ function TransactionsPage() {
       </div>
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-card backdrop-blur">
-        {isLoading ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">Loading...</div>
-        ) : txns.length === 0 ? (
+        {txns.length === 0 ? (
           <div className="p-12 text-center">
             <p className="font-display text-lg">No transactions yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -123,7 +91,7 @@ function TransactionsPage() {
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground hover:text-destructive"
-                    onClick={() => del.mutate(t.id)}
+                    onClick={() => handleDelete(t.id)}
                     aria-label="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
