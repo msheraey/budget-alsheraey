@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { TrendingDown, TrendingUp, Wallet, PiggyBank } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -80,9 +89,39 @@ function Dashboard() {
     return { byCat, income, spent, budgetIncome, budgetExpense };
   }, [txns]);
 
+  const chartData = useMemo(() => {
+    const y = cursor.getUTCFullYear();
+    const m = cursor.getUTCMonth();
+    const days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const buckets: { day: string; Income: number; Spent: number; Net: number }[] = [];
+    let cIn = 0;
+    let cOut = 0;
+    const byDay = new Map<number, { i: number; s: number }>();
+    for (const t of txns) {
+      const d = new Date(t.occurred_on + "T00:00:00Z").getUTCDate();
+      const cur = byDay.get(d) ?? { i: 0, s: 0 };
+      if (t.type === "income") cur.i += t.amount;
+      else cur.s += t.amount;
+      byDay.set(d, cur);
+    }
+    for (let d = 1; d <= days; d++) {
+      const v = byDay.get(d) ?? { i: 0, s: 0 };
+      cIn += v.i;
+      cOut += v.s;
+      buckets.push({
+        day: String(d).padStart(2, "0"),
+        Income: Math.round(cIn),
+        Spent: Math.round(cOut),
+        Net: Math.round(cIn - cOut),
+      });
+    }
+    return buckets;
+  }, [txns, cursor]);
+
   const monthLabel = `${MONTHS[cursor.getUTCMonth()]} ${cursor.getUTCFullYear()}`;
   const expenseProgress = totals.budgetExpense > 0 ? Math.min(100, (totals.spent / totals.budgetExpense) * 100) : 0;
   const netRemaining = totals.income - totals.spent;
+
 
   const groups: CategoryGroup[] = ["income", "fixed", "variable", "savings"];
 
@@ -147,6 +186,58 @@ function Dashboard() {
           <CategoryGroupSection key={g} group={g} byCat={totals.byCat} />
         ))}
       </div>
+
+      <section className="mt-8 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Monthly progress</p>
+            <h2 className="font-display text-xl font-semibold">Cumulative income vs spend</h2>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary" /> Income</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-accent" /> Spent</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-warning" /> Net</span>
+          </div>
+        </div>
+        <div className="h-72 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gIncome" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="oklch(0.71 0.17 162)" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="oklch(0.71 0.17 162)" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gSpent" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="oklch(0.74 0.13 210)" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="oklch(0.74 0.13 210)" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gNet" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="oklch(0.78 0.16 75)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="oklch(0.78 0.16 75)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="oklch(0.91 0.012 240)" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="day" tick={{ fill: "oklch(0.50 0.03 250)", fontSize: 11 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: "oklch(0.50 0.03 250)", fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={(v) => formatAED(Number(v))} />
+              <Tooltip
+                contentStyle={{
+                  background: "white",
+                  border: "1px solid oklch(0.91 0.012 240)",
+                  borderRadius: 12,
+                  fontSize: 12,
+                  color: "oklch(0.20 0.04 265)",
+                  boxShadow: "0 6px 24px -12px oklch(0.20 0.04 265 / 0.18)",
+                }}
+                formatter={(v: number, n) => [`AED ${formatAED(v)}`, n as string]}
+                labelFormatter={(l) => `Day ${l}`}
+              />
+              <Area type="monotone" dataKey="Income" stroke="oklch(0.71 0.17 162)" strokeWidth={2.5} fill="url(#gIncome)" />
+              <Area type="monotone" dataKey="Spent" stroke="oklch(0.74 0.13 210)" strokeWidth={2.5} fill="url(#gSpent)" />
+              <Area type="monotone" dataKey="Net" stroke="oklch(0.78 0.16 75)" strokeWidth={2} fill="url(#gNet)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
     </div>
   );
 }
