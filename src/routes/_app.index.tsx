@@ -55,7 +55,7 @@ function Dashboard() {
   });
 
 
-  const all = useTransactions();
+  const { data: all } = useTransactions();
   const startStr = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1))
     .toISOString().slice(0, 10);
   const endStr = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1))
@@ -64,6 +64,7 @@ function Dashboard() {
     () => all.filter((t) => t.occurred_on >= startStr && t.occurred_on < endStr),
     [all, startStr, endStr],
   );
+
 
   const totals = useMemo(() => {
     const byCat = new Map<string, number>();
