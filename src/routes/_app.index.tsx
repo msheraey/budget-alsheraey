@@ -89,9 +89,39 @@ function Dashboard() {
     return { byCat, income, spent, budgetIncome, budgetExpense };
   }, [txns]);
 
+  const chartData = useMemo(() => {
+    const y = cursor.getUTCFullYear();
+    const m = cursor.getUTCMonth();
+    const days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const buckets: { day: string; Income: number; Spent: number; Net: number }[] = [];
+    let cIn = 0;
+    let cOut = 0;
+    const byDay = new Map<number, { i: number; s: number }>();
+    for (const t of txns) {
+      const d = new Date(t.occurred_on + "T00:00:00Z").getUTCDate();
+      const cur = byDay.get(d) ?? { i: 0, s: 0 };
+      if (t.type === "income") cur.i += t.amount;
+      else cur.s += t.amount;
+      byDay.set(d, cur);
+    }
+    for (let d = 1; d <= days; d++) {
+      const v = byDay.get(d) ?? { i: 0, s: 0 };
+      cIn += v.i;
+      cOut += v.s;
+      buckets.push({
+        day: String(d).padStart(2, "0"),
+        Income: Math.round(cIn),
+        Spent: Math.round(cOut),
+        Net: Math.round(cIn - cOut),
+      });
+    }
+    return buckets;
+  }, [txns, cursor]);
+
   const monthLabel = `${MONTHS[cursor.getUTCMonth()]} ${cursor.getUTCFullYear()}`;
   const expenseProgress = totals.budgetExpense > 0 ? Math.min(100, (totals.spent / totals.budgetExpense) * 100) : 0;
   const netRemaining = totals.income - totals.spent;
+
 
   const groups: CategoryGroup[] = ["income", "fixed", "variable", "savings"];
 
