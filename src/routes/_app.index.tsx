@@ -238,6 +238,13 @@ function Dashboard() {
           </ResponsiveContainer>
         </div>
       </section>
+
+      <BudgetProgressSummary
+        spent={totals.spent}
+        budget={totals.budgetExpense}
+        income={totals.income}
+        net={netRemaining}
+      />
     </div>
   );
 }
