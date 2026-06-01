@@ -249,6 +249,64 @@ function Dashboard() {
   );
 }
 
+function BudgetProgressSummary({
+  spent, budget, income, net,
+}: { spent: number; budget: number; income: number; net: number }) {
+  const pct = budget > 0 ? (spent / budget) * 100 : 0;
+  const remaining = budget - spent;
+  const over = remaining < 0;
+  const clamped = Math.min(100, Math.max(0, pct));
+  const status =
+    pct >= 100 ? { label: "Over budget", tone: "text-destructive", bar: "bg-destructive" }
+    : pct >= 85 ? { label: "Close to limit", tone: "text-warning", bar: "bg-gradient-warning" }
+    : pct >= 50 ? { label: "On track", tone: "text-accent", bar: "bg-gradient-info" }
+    : { label: "Healthy", tone: "text-success", bar: "bg-gradient-primary" };
+  const daysIn = Math.max(1, new Date().getUTCDate());
+  const dailyAvg = spent / daysIn;
+  const daysLeft = Math.max(0, Math.ceil(remaining / Math.max(1, dailyAvg)));
+
+  return (
+    <section className="mt-6 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Budget progress</p>
+          <h2 className="font-display text-xl font-semibold">
+            You've used <span className={status.tone}>{pct.toFixed(0)}%</span> of your monthly budget
+          </h2>
+        </div>
+        <span className={`rounded-full border border-border/60 px-3 py-1 text-xs font-medium ${status.tone}`}>
+          {status.label}
+        </span>
+      </div>
+
+      <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${status.bar} transition-all`} style={{ width: `${clamped}%` }} />
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+        <span>AED {formatAED(spent)} spent</span>
+        <span>AED {formatAED(budget)} budget</span>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label={over ? "Over budget by" : "Remaining"} value={`AED ${formatAED(Math.abs(remaining))}`} tone={over ? "text-destructive" : "text-success"} />
+        <Stat label="Spent so far" value={`AED ${formatAED(spent)}`} tone="text-accent" />
+        <Stat label="Net (income − spend)" value={`AED ${formatAED(net)}`} tone={net >= 0 ? "text-success" : "text-destructive"} sub={`Income AED ${formatAED(income)}`} />
+        <Stat label={over ? "Pace" : "At current pace, lasts"} value={over ? "Exceeded" : `${daysLeft} day${daysLeft === 1 ? "" : "s"}`} tone="text-primary-glow" sub={`Avg AED ${formatAED(dailyAvg)}/day`} />
+      </div>
+    </section>
+  );
+}
+
+function Stat({ label, value, tone, sub }: { label: string; value: string; tone: string; sub?: string }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-surface-2/40 p-3">
+      <p className="text-[11px] uppercase tracking-widest text-muted-foreground">{label}</p>
+      <p className={`mt-1 font-display text-lg font-semibold tabular-nums ${tone}`}>{value}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">{sub}</p>}
+    </div>
+  );
+}
+
 function SummaryCard({
   label, value, sub, icon, tone,
 }: {
