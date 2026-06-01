@@ -1,11 +1,16 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
 import { categoryById, formatAED } from "@/lib/categories";
-import { useTransactions, deleteTransaction } from "@/lib/transactions-store";
+import {
+  deleteTransaction,
+  useTransactions,
+  type Txn,
+} from "@/lib/transactions-store";
 
 export const Route = createFileRoute("/_app/transactions")({
   head: () => ({
@@ -18,11 +23,16 @@ export const Route = createFileRoute("/_app/transactions")({
 });
 
 function TransactionsPage() {
-  const txns = useTransactions();
+  const { data: txns, loading } = useTransactions();
+  const [editing, setEditing] = useState<Txn | null>(null);
 
-  const handleDelete = (id: string) => {
-    deleteTransaction(id);
-    toast.success("Deleted");
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteTransaction(id);
+      toast.success("Deleted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    }
   };
 
   return (
@@ -32,16 +42,22 @@ function TransactionsPage() {
           <p className="text-sm font-medium uppercase tracking-widest text-primary-glow">
             Activity
           </p>
-          <h1 className="font-display text-4xl font-semibold tracking-tight">Transactions</h1>
+          <h1 className="font-display text-4xl font-semibold tracking-tight">
+            Transactions
+          </h1>
           <p className="text-sm text-muted-foreground">
-            {txns.length} {txns.length === 1 ? "entry" : "entries"} on record
+            {loading
+              ? "Loading…"
+              : `${txns.length} ${txns.length === 1 ? "entry" : "entries"} on record`}
           </p>
         </div>
         <AddTransactionDialog defaultMonth={new Date()} />
       </div>
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-card backdrop-blur">
-        {txns.length === 0 ? (
+        {loading ? (
+          <div className="p-12 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : txns.length === 0 ? (
           <div className="p-12 text-center">
             <p className="font-display text-lg">No transactions yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -53,7 +69,10 @@ function TransactionsPage() {
             {txns.map((t) => {
               const cat = categoryById(t.category);
               return (
-                <li key={t.id} className="flex items-center gap-4 px-5 py-4 hover:bg-muted/30">
+                <li
+                  key={t.id}
+                  className="flex items-center gap-4 px-5 py-4 hover:bg-muted/30"
+                >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">{cat?.name ?? t.category}</p>
@@ -62,7 +81,7 @@ function TransactionsPage() {
                         className={
                           t.type === "income"
                             ? "border-success/40 text-success"
-                            : "border-border text-muted-foreground"
+                            : "border-accent/50 text-accent-foreground"
                         }
                       >
                         {t.type}
@@ -90,6 +109,15 @@ function TransactionsPage() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="text-muted-foreground hover:text-primary-glow"
+                    onClick={() => setEditing(t)}
+                    aria-label="Edit"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => handleDelete(t.id)}
                     aria-label="Delete"
@@ -102,6 +130,14 @@ function TransactionsPage() {
           </ul>
         )}
       </div>
+
+      {editing && (
+        <AddTransactionDialog
+          editing={editing}
+          open={!!editing}
+          onOpenChange={(o) => !o && setEditing(null)}
+        />
+      )}
     </div>
   );
 }

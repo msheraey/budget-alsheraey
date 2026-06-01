@@ -55,7 +55,7 @@ function Dashboard() {
   });
 
 
-  const all = useTransactions();
+  const { data: all } = useTransactions();
   const startStr = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1))
     .toISOString().slice(0, 10);
   const endStr = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1))
@@ -64,6 +64,7 @@ function Dashboard() {
     () => all.filter((t) => t.occurred_on >= startStr && t.occurred_on < endStr),
     [all, startStr, endStr],
   );
+
 
   const totals = useMemo(() => {
     const byCat = new Map<string, number>();
@@ -163,21 +164,30 @@ function SummaryCard({
     destructive: "text-destructive",
   }[tone];
 
+  const gradientClass = {
+    primary: "bg-gradient-primary",
+    success: "bg-gradient-success",
+    warning: "bg-gradient-warning",
+    destructive: "bg-gradient-warning",
+  }[tone];
+
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/60 p-5 shadow-card backdrop-blur transition hover:border-primary/40">
-      <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-primary opacity-10 blur-2xl transition group-hover:opacity-25" />
+    <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/70 p-5 shadow-card backdrop-blur transition hover:border-primary/50 hover:-translate-y-0.5">
+      <div className={`absolute -right-8 -top-8 h-28 w-28 rounded-full ${gradientClass} opacity-25 blur-2xl transition group-hover:opacity-50`} />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-glow/60 to-transparent" />
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">{label}</p>
-        <span className={toneClass}>{icon}</span>
+        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${gradientClass} text-primary-foreground shadow-glow`}>{icon}</span>
       </div>
       <p className="mt-3 font-display text-3xl font-semibold tabular-nums">
         <span className="text-sm font-normal text-muted-foreground">AED </span>
-        {formatAED(value)}
+        <span className={toneClass}>{formatAED(value)}</span>
       </p>
       <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
     </div>
   );
 }
+
 
 function CategoryGroupSection({
   group, byCat,

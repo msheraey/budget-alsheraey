@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export type Txn = {
   id: string;
@@ -10,66 +11,113 @@ export type Txn = {
   created_at: string;
 };
 
-const KEY = "ledger.transactions.v1";
+type Listener = (txns: Txn[]) => void;
+let cache: Txn[] = [];
+let loaded = false;
+let loadingPromise: Promise<void> | null = null;
+const listeners = new Set<Listener>();
 
-function read(): Txn[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Txn[]) : [];
-  } catch {
-    return [];
+function emit() {
+  for (const l of listeners) l(cache);
+}
+
+async function load() {
+  if (loadingPromise) return loadingPromise;
+  loadingPromise = (async () => {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .order("occurred_on", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (!error && data) {
+      cache = data as Txn[];
+      loaded = true;
+      emit();
+    }
+  })();
+  return loadingPromise;
+}
+
+let channelStarted = false;
+function startRealtime() {
+  if (channelStarted) return;
+  channelStarted = true;
+  supabase
+    .channel("transactions-changes")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "transactions" },
+      (payload) => {
+        if (payload.eventType === "INSERT") {
+          const row = payload.new as Txn;
+          if (!cache.find((t) => t.id === row.id)) cache = [row, ...cache];
+        } else if (payload.eventType === "UPDATE") {
+          const row = payload.new as Txn;
+          cache = cache.map((t) => (t.id === row.id ? row : t));
+        } else if (payload.eventType === "DELETE") {
+          const row = payload.old as Txn;
+          cache = cache.filter((t) => t.id !== row.id);
+        }
+        emit();
+      },
+    )
+    .subscribe();
+}
+
+export function useTransactions(): { data: Txn[]; loading: boolean } {
+  const [data, setData] = useState<Txn[]>(cache);
+  const [loading, setLoading] = useState(!loaded);
+
+  useEffect(() => {
+    listeners.add(setData);
+    startRealtime();
+    if (!loaded) {
+      load().finally(() => setLoading(false));
+    } else {
+      setData(cache);
+      setLoading(false);
+    }
+    return () => {
+      listeners.delete(setData);
+    };
+  }, []);
+
+  return { data, loading };
+}
+
+export async function addTransaction(input: Omit<Txn, "id" | "created_at">) {
+  const { data, error } = await supabase
+    .from("transactions")
+    .insert(input)
+    .select()
+    .single();
+  if (error) throw error;
+  const row = data as Txn;
+  if (!cache.find((t) => t.id === row.id)) {
+    cache = [row, ...cache];
+    emit();
   }
 }
 
-const listeners = new Set<() => void>();
-
-function write(next: Txn[]) {
-  window.localStorage.setItem(KEY, JSON.stringify(next));
-  listeners.forEach((l) => l());
+export async function updateTransaction(
+  id: string,
+  patch: Partial<Omit<Txn, "id" | "created_at">>,
+) {
+  const { data, error } = await supabase
+    .from("transactions")
+    .update(patch)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  const row = data as Txn;
+  cache = cache.map((t) => (t.id === row.id ? row : t));
+  emit();
 }
 
-function subscribe(l: () => void) {
-  listeners.add(l);
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) l();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(l);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-let cache: Txn[] | null = null;
-let cacheRaw: string | null = null;
-function getSnapshot(): Txn[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(KEY);
-  if (raw === cacheRaw && cache) return cache;
-  cacheRaw = raw;
-  cache = read();
-  return cache;
-}
-function getServerSnapshot(): Txn[] {
-  return [];
-}
-
-export function useTransactions(): Txn[] {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
-
-export function addTransaction(input: Omit<Txn, "id" | "created_at">) {
-  const next: Txn = {
-    ...input,
-    id: crypto.randomUUID(),
-    created_at: new Date().toISOString(),
-  };
-  write([next, ...read()]);
-}
-
-export function deleteTransaction(id: string) {
-  write(read().filter((t) => t.id !== id));
+export async function deleteTransaction(id: string) {
+  const { error } = await supabase.from("transactions").delete().eq("id", id);
+  if (error) throw error;
+  cache = cache.filter((t) => t.id !== id);
+  emit();
 }

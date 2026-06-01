@@ -23,7 +23,6 @@ export type Database = {
           note: string | null
           occurred_on: string
           type: Database["public"]["Enums"]["txn_type"]
-          user_id: string
         }
         Insert: {
           amount: number
@@ -33,7 +32,6 @@ export type Database = {
           note?: string | null
           occurred_on?: string
           type: Database["public"]["Enums"]["txn_type"]
-          user_id: string
         }
         Update: {
           amount?: number
@@ -43,7 +41,6 @@ export type Database = {
           note?: string | null
           occurred_on?: string
           type?: Database["public"]["Enums"]["txn_type"]
-          user_id?: string
         }
         Relationships: []
       }
