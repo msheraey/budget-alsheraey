@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Repeat, CreditCard, Plus, Trash2, TrendingDown, TrendingUp,
-  CalendarClock, Activity,
+  CalendarClock, Activity, Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
