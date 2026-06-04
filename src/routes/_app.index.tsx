@@ -299,9 +299,10 @@ function Dashboard() {
               </p>
               <Link
                 to="/transactions"
+                search={{ category: "miscellaneous" }}
                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-warning"
               >
-                Review transactions <ChevronRight className="h-3 w-3" />
+                Re-tag Miscellaneous transactions <ChevronRight className="h-3 w-3" />
               </Link>
             </div>
           </div>
