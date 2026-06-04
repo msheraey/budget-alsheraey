@@ -74,8 +74,17 @@ function GoalCard({ g }: { g: SavingsGoal }) {
 
   async function quickAdd(amount: number) {
     try {
-      await goalsStore.update(g.id, { current_amount: Number(g.current_amount) + amount });
-      toast.success(`+${formatAED(amount)} added`);
+      const prevPct = g.target_amount > 0 ? (Number(g.current_amount) / Number(g.target_amount)) * 100 : 0;
+      const next = Number(g.current_amount) + amount;
+      const nextPct = g.target_amount > 0 ? Math.min(100, (next / Number(g.target_amount)) * 100) : 0;
+      await goalsStore.update(g.id, { current_amount: next });
+      const crossed = MILESTONES.find((m) => prevPct < m && nextPct >= m);
+      if (crossed) {
+        celebrate(crossed);
+        toast.success(crossed === 100 ? "Goal complete! 🎉" : `${crossed}% milestone reached!`);
+      } else {
+        toast.success(`+${formatAED(amount)} added`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     }
