@@ -117,9 +117,16 @@ export type Debt = {
   created_at: string; updated_at: string;
 };
 export type Achievement = { id: string; key: string; unlocked_at: string };
+export type Bill = {
+  id: string; name: string; amount: number; due_date: string;
+  category: string | null; recurring: string; paid: boolean;
+  created_at: string; updated_at: string;
+};
 
 export const budgetsStore = makeStore<CategoryBudget>("category_budgets");
 export const goalsStore = makeStore<SavingsGoal>("savings_goals", { col: "created_at", asc: false });
 export const subscriptionsStore = makeStore<Subscription>("subscriptions", { col: "next_renewal", asc: true });
 export const debtsStore = makeStore<Debt>("debts", { col: "created_at", asc: false });
 export const achievementsStore = makeStore<Achievement>("achievements", { col: "unlocked_at", asc: false });
+export const billsStore = makeStore<Bill>("bills", { col: "due_date", asc: true });
+
