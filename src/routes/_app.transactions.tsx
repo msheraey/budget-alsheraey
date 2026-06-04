@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_app/transactions")({
   head: () => ({
     meta: [
       { title: "Transactions — Ledger" },
-      { name: "description", content: "All your income and expense transactions." },
+      { name: "description", content: "All income and expense transactions." },
     ],
   }),
   component: TransactionsPage,
@@ -27,6 +27,7 @@ function TransactionsPage() {
   const [editing, setEditing] = useState<Txn | null>(null);
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Delete this transaction?")) return;
     try {
       await deleteTransaction(id);
       toast.success("Deleted");
@@ -35,101 +36,76 @@ function TransactionsPage() {
     }
   };
 
+  // Group by date
+  const groups = groupByDate(txns);
+
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <p className="text-sm font-medium uppercase tracking-widest text-primary-glow">
-            Activity
-          </p>
-          <h1 className="font-display text-4xl font-semibold tracking-tight">
-            Transactions
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {loading
-              ? "Loading…"
-              : `${txns.length} ${txns.length === 1 ? "entry" : "entries"} on record`}
+    <div className="space-y-5 px-4 pt-6 sm:px-6">
+      <header className="flex items-end justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Activity</p>
+          <h1 className="font-display text-2xl font-semibold sm:text-3xl">Transactions</h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {loading ? "Loading…" : `${txns.length} ${txns.length === 1 ? "entry" : "entries"}`}
           </p>
         </div>
         <AddTransactionDialog defaultMonth={new Date()} />
-      </div>
+      </header>
 
-      <div className="mt-8 overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-card backdrop-blur">
-        {loading ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">Loading…</div>
-        ) : txns.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="font-display text-lg">No transactions yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Add your first one to start tracking against your budget.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-border/60">
-            {txns.map((t) => {
-              const cat = categoryById(t.category);
-              return (
-                <li
-                  key={t.id}
-                  className="flex items-center gap-4 px-5 py-4 hover:bg-muted/30"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-medium">{cat?.name ?? t.category}</p>
-                      <Badge
-                        variant="outline"
-                        className={
-                          t.type === "income"
-                            ? "border-success/40 text-success"
-                            : "border-accent/50 text-accent-foreground"
-                        }
-                      >
-                        {t.type}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {new Date(t.occurred_on).toLocaleDateString("en-AE", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                      {t.note ? ` · ${t.note}` : ""}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className={`font-display text-lg font-semibold tabular-nums ${
-                        t.type === "income" ? "text-success" : "text-foreground"
-                      }`}
-                    >
-                      {t.type === "income" ? "+" : "−"} {formatAED(t.amount)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">AED</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-primary-glow"
-                    onClick={() => setEditing(t)}
-                    aria-label="Edit"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(t.id)}
-                    aria-label="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      {loading ? (
+        <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Loading…</div>
+      ) : txns.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center">
+          <p className="font-display text-lg">No transactions yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Tap the + button to add your first.</p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {groups.map(([dateStr, items]) => (
+            <section key={dateStr}>
+              <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+                {formatGroupDate(dateStr)}
+              </p>
+              <ul className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+                {items.map((t) => {
+                  const cat = categoryById(t.category);
+                  const Icon = cat?.icon ?? Wallet;
+                  const isIncome = t.type === "income";
+                  return (
+                    <li key={t.id} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0">
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isIncome ? "bg-success/15 text-success" : "bg-secondary text-secondary-foreground"}`}>
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-medium">{cat?.name ?? t.category}</p>
+                          {t.added_by && (
+                            <Badge variant="outline" className="border-border bg-secondary/50 px-1.5 py-0 text-[10px] font-normal text-muted-foreground">
+                              {t.added_by}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {t.payment_method ?? "—"}{t.note ? ` · ${t.note}` : ""}
+                        </p>
+                      </div>
+                      <p className={`shrink-0 font-display text-sm font-semibold tabular-nums ${isIncome ? "text-success" : "text-foreground"}`}>
+                        {isIncome ? "+" : "−"} {formatAED(t.amount)}
+                      </p>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setEditing(t)} aria-label="Edit">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(t.id)} aria-label="Delete">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
 
       {editing && (
         <AddTransactionDialog
@@ -140,4 +116,24 @@ function TransactionsPage() {
       )}
     </div>
   );
+}
+
+function groupByDate(txns: Txn[]): [string, Txn[]][] {
+  const map = new Map<string, Txn[]>();
+  for (const t of txns) {
+    const k = t.occurred_on;
+    if (!map.has(k)) map.set(k, []);
+    map.get(k)!.push(t);
+  }
+  return [...map.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+}
+
+function formatGroupDate(s: string) {
+  const d = new Date(s);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const dd = new Date(d); dd.setHours(0, 0, 0, 0);
+  if (dd.getTime() === today.getTime()) return "Today";
+  if (dd.getTime() === yesterday.getTime()) return "Yesterday";
+  return d.toLocaleDateString("en-AE", { weekday: "short", day: "2-digit", month: "short" });
 }
