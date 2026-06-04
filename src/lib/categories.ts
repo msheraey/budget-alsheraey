@@ -22,7 +22,7 @@ export interface Category {
 export const CATEGORIES: Category[] = [
   // Income
   { id: "my-salary",        name: "My salary",         group: "income",   budget: 6500, icon: Briefcase, color: "primary" },
-  { id: "wife-salary",      name: "Wife salary",       group: "income",   budget: 7000, icon: Briefcase, color: "primary" },
+  { id: "wife-salary",      name: "Aprille salary",    group: "income",   budget: 7000, icon: Briefcase, color: "primary" },
   { id: "other-income",     name: "Other income",      group: "income",   budget: 0,    icon: Plus, color: "primary" },
 
   // Fixed expenses
@@ -31,8 +31,8 @@ export const CATEGORIES: Category[] = [
   { id: "school-fees",         name: "School fees",        group: "fixed", budget: 1000, icon: GraduationCap, color: "destructive" },
   { id: "phone-bill",          name: "Phone bill",         group: "fixed", budget: 400,  icon: Phone,    color: "destructive" },
   { id: "electricity-water",   name: "Utilities",          group: "fixed", budget: 400,  icon: Zap,      color: "destructive" },
-  { id: "wife-transport",      name: "Wife transport",     group: "fixed", budget: 500,  icon: Car,      color: "destructive" },
-  { id: "wife-house-payment",  name: "Wife house payment", group: "fixed", budget: 550,  icon: Home,     color: "destructive" },
+  { id: "wife-transport",      name: "Aprille transport",     group: "fixed", budget: 500,  icon: Car,      color: "destructive" },
+  { id: "wife-house-payment",  name: "Aprille house payment", group: "fixed", budget: 550,  icon: Home,     color: "destructive" },
   { id: "petrol",              name: "Fuel",               group: "fixed", budget: 1320, icon: Fuel,     color: "destructive" },
   { id: "salik",               name: "Salik / tolls",      group: "fixed", budget: 240,  icon: MapPin,   color: "destructive" },
   { id: "vehicle-maintenance", name: "Vehicle maintenance",group: "fixed", budget: 200,  icon: Wrench,   color: "destructive" },
@@ -72,4 +72,4 @@ export const MONTHS = [
 ] as const;
 
 export const PAYMENT_METHODS = ["Cash", "Card", "Bank transfer", "Wallet"] as const;
-export const MEMBERS = ["Mohammed", "Wife"] as const;
+export const MEMBERS = ["Mohammed", "Aprille"] as const;

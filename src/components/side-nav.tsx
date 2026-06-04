@@ -23,9 +23,9 @@ export function SideNav() {
             <li key={it.url}>
               <Link
                 to={it.url}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                   active
-                    ? "bg-primary/15 text-primary"
+                    ? "bg-gradient-primary text-primary-foreground shadow-glow"
                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                 }`}
               >
