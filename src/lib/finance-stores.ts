@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 // Generic shared realtime store factory ----------------------------------
+// Uses an untyped client internally to keep this file generic across tables.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb: any = supabase;
+
 function makeStore<T extends { id: string }>(table: string, orderBy?: { col: string; asc?: boolean }) {
   let cache: T[] = [];
   let loaded = false;
@@ -14,7 +18,7 @@ function makeStore<T extends { id: string }>(table: string, orderBy?: { col: str
   async function load() {
     if (loadingPromise) return loadingPromise;
     loadingPromise = (async () => {
-      let q = supabase.from(table).select("*");
+      let q = sb.from(table).select("*");
       if (orderBy) q = q.order(orderBy.col, { ascending: orderBy.asc ?? false });
       const { data, error } = await q;
       if (!error && data) { cache = data as T[]; loaded = true; emit(); }
@@ -25,17 +29,16 @@ function makeStore<T extends { id: string }>(table: string, orderBy?: { col: str
   function startRealtime() {
     if (channelStarted) return;
     channelStarted = true;
-    supabase
-      .channel(`${table}-changes`)
-      .on("postgres_changes", { event: "*", schema: "public", table }, (payload) => {
+    sb.channel(`${table}-changes`)
+      .on("postgres_changes", { event: "*", schema: "public", table }, (payload: { eventType: string; new: T; old: T }) => {
         if (payload.eventType === "INSERT") {
-          const row = payload.new as T;
+          const row = payload.new;
           if (!cache.find((r) => r.id === row.id)) cache = [row, ...cache];
         } else if (payload.eventType === "UPDATE") {
-          const row = payload.new as T;
+          const row = payload.new;
           cache = cache.map((r) => (r.id === row.id ? row : r));
         } else if (payload.eventType === "DELETE") {
-          const row = payload.old as T;
+          const row = payload.old;
           cache = cache.filter((r) => r.id !== row.id);
         }
         emit();
@@ -56,8 +59,8 @@ function makeStore<T extends { id: string }>(table: string, orderBy?: { col: str
     return { data, loading };
   }
 
-  async function add(input: Omit<T, "id" | "created_at" | "updated_at">) {
-    const { data, error } = await supabase.from(table).insert(input as never).select().single();
+  async function add(input: Partial<T>) {
+    const { data, error } = await sb.from(table).insert(input).select().single();
     if (error) throw error;
     const row = data as T;
     if (!cache.find((r) => r.id === row.id)) { cache = [row, ...cache]; emit(); }
@@ -65,7 +68,7 @@ function makeStore<T extends { id: string }>(table: string, orderBy?: { col: str
   }
 
   async function update(id: string, patch: Partial<T>) {
-    const { data, error } = await supabase.from(table).update(patch as never).eq("id", id).select().single();
+    const { data, error } = await sb.from(table).update(patch).eq("id", id).select().single();
     if (error) throw error;
     const row = data as T;
     cache = cache.map((r) => (r.id === row.id ? row : r));
@@ -74,7 +77,7 @@ function makeStore<T extends { id: string }>(table: string, orderBy?: { col: str
   }
 
   async function upsert(input: Partial<T>, onConflict: string) {
-    const { data, error } = await supabase.from(table).upsert(input as never, { onConflict }).select().single();
+    const { data, error } = await sb.from(table).upsert(input, { onConflict }).select().single();
     if (error) throw error;
     const row = data as T;
     const exists = cache.find((r) => r.id === row.id);
@@ -84,7 +87,7 @@ function makeStore<T extends { id: string }>(table: string, orderBy?: { col: str
   }
 
   async function remove(id: string) {
-    const { error } = await supabase.from(table).delete().eq("id", id);
+    const { error } = await sb.from(table).delete().eq("id", id);
     if (error) throw error;
     cache = cache.filter((r) => r.id !== id);
     emit();
