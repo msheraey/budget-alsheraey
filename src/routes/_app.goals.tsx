@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Target, Plus, Trash2, Plane, Car, GraduationCap, ShieldCheck, Home } from "lucide-react";
 import { toast } from "sonner";
+import confetti from "canvas-confetti";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,17 @@ import {
 } from "@/components/ui/select";
 import { formatAED } from "@/lib/categories";
 import { goalsStore, type SavingsGoal } from "@/lib/finance-stores";
+
+const MILESTONES = [25, 50, 75, 100];
+function celebrate(pct: number) {
+  const origin = { x: 0.5, y: 0.6 };
+  const colors = ["#FF5E5B", "#FF7A6B", "#FFB020", "#7C5CFF", "#3FE3B0"];
+  confetti({ particleCount: pct >= 100 ? 220 : 90, spread: pct >= 100 ? 140 : 80, startVelocity: 45, origin, colors, scalar: 1.05 });
+  if (pct >= 100) {
+    setTimeout(() => confetti({ particleCount: 140, angle: 60, spread: 70, origin: { x: 0, y: 0.7 }, colors }), 200);
+    setTimeout(() => confetti({ particleCount: 140, angle: 120, spread: 70, origin: { x: 1, y: 0.7 }, colors }), 350);
+  }
+}
 
 export const Route = createFileRoute("/_app/goals")({
   head: () => ({ meta: [{ title: "Goals — Ledger" }] }),
