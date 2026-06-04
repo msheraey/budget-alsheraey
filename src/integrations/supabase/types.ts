@@ -32,6 +32,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bills: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string
+          due_date: string
+          id: string
+          name: string
+          paid: boolean
+          recurring: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          due_date: string
+          id?: string
+          name: string
+          paid?: boolean
+          recurring?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          due_date?: string
+          id?: string
+          name?: string
+          paid?: boolean
+          recurring?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       category_budgets: {
         Row: {
           amount: number
