@@ -3,17 +3,22 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Wallet, PiggyBank, CreditCard, TrendingUp, TrendingDown,
   Sparkles, AlertCircle, CheckCircle2, ShieldCheck, ChevronRight,
+  ArrowDownRight, ArrowUpRight, Activity, CalendarClock, Target,
+  AlertTriangle, Plus, Trash2,
 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
-  CATEGORIES, MONTHS, categoryById, formatAED, type CategoryGroup,
+  CATEGORIES, MONTHS, categoryById, formatAED,
 } from "@/lib/categories";
 import { useTransactions, type Txn } from "@/lib/transactions-store";
 import {
-  budgetsStore, debtsStore, goalsStore,
+  budgetsStore, debtsStore, goalsStore, billsStore, type Bill,
 } from "@/lib/finance-stores";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({
@@ -26,7 +31,7 @@ export const Route = createFileRoute("/_app/")({
 });
 
 const START_YEAR = 2026;
-const START_MONTH = 5; // June
+const START_MONTH = 5;
 const MONTH_OPTIONS = Array.from({ length: 24 }, (_, i) => {
   const d = new Date(Date.UTC(START_YEAR, START_MONTH + i, 1));
   return {
@@ -50,8 +55,8 @@ function Dashboard() {
   const { data: budgets } = budgetsStore.useData();
   const { data: goals } = goalsStore.useData();
   const { data: debts } = debtsStore.useData();
+  const { data: bills } = billsStore.useData();
 
-  // Budget resolver: DB override → static fallback
   const budgetFor = (id: string) =>
     budgets.find((b) => b.category === id)?.amount ?? categoryById(id)?.budget ?? 0;
 
@@ -65,8 +70,6 @@ function Dashboard() {
     () => all.filter((t) => t.occurred_on >= startStr && t.occurred_on < endStr),
     [all, startStr, endStr],
   );
-
-  // Previous month for trends
   const prevStartStr = new Date(Date.UTC(y, m - 1, 1)).toISOString().slice(0, 10);
   const prevTxns = useMemo(
     () => all.filter((t) => t.occurred_on >= prevStartStr && t.occurred_on < startStr),
@@ -75,15 +78,13 @@ function Dashboard() {
 
   const totals = useMemo(() => {
     const byCat = new Map<string, number>();
-    let income = 0;
-    let spent = 0;
-    let savingsContrib = 0;
+    let income = 0, spent = 0, savingsContrib = 0;
     for (const t of txns) {
-      byCat.set(t.category, (byCat.get(t.category) ?? 0) + t.amount);
-      if (t.type === "income") income += t.amount;
-      else spent += t.amount;
+      byCat.set(t.category, (byCat.get(t.category) ?? 0) + Number(t.amount));
+      if (t.type === "income") income += Number(t.amount);
+      else spent += Number(t.amount);
       const cat = categoryById(t.category);
-      if (cat?.group === "savings" && t.type === "expense") savingsContrib += t.amount;
+      if (cat?.group === "savings" && t.type === "expense") savingsContrib += Number(t.amount);
     }
     const totalBudget = CATEGORIES.filter((c) => c.group !== "income")
       .reduce((s, c) => s + budgetFor(c.id), 0);
@@ -91,18 +92,19 @@ function Dashboard() {
   }, [txns, budgets]);
 
   const prevSpent = useMemo(
-    () => prevTxns.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0),
+    () => prevTxns.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0),
     [prevTxns],
   );
 
-  // Today / pacing
   const today = new Date();
   const isCurrentMonth = today.getUTCFullYear() === y && today.getUTCMonth() === m;
   const dayOfMonth = isCurrentMonth ? today.getUTCDate() : daysInMonth;
   const daysLeft = Math.max(1, daysInMonth - dayOfMonth + 1);
 
   const savingsBalance = goals.reduce((s, g) => s + Number(g.current_amount), 0);
+  const savingsTarget = goals.reduce((s, g) => s + Number(g.target_amount), 0);
   const totalDebt = debts.reduce((s, d) => s + Number(d.balance), 0);
+  const saved = Math.max(0, totals.income - totals.spent);
   const availableCash = totals.income - totals.spent;
   const netWorth = availableCash + savingsBalance - totalDebt;
 
@@ -111,13 +113,29 @@ function Dashboard() {
   const expectedSpendByNow = (totals.totalBudget / daysInMonth) * dayOfMonth;
   const onTrack = totals.spent <= expectedSpendByNow;
 
-  // Category breakdown (expenses only, sorted)
+  // Forecast: project full-month spend at current pace
+  const dailyPace = dayOfMonth > 0 ? totals.spent / dayOfMonth : 0;
+  const forecastSpend = isCurrentMonth ? dailyPace * daysInMonth : totals.spent;
+  const forecastSavings = totals.income - forecastSpend;
+
+  // Financial Health (simple 3-factor): adherence + savings rate + emergency
+  const monthlyExpenses = Math.max(totals.spent, prevSpent, 1);
+  const adherence = totals.totalBudget > 0
+    ? Math.max(0, Math.min(100, ((totals.totalBudget - Math.max(0, totals.spent - totals.totalBudget)) / totals.totalBudget) * 100))
+    : 50;
+  const savingsRate = totals.income > 0
+    ? Math.max(0, Math.min(100, (saved / totals.income) * 100 / 0.2 * 100 / 100)) // 20% rate => 100
+    : 0;
+  const efMonths = savingsBalance / monthlyExpenses;
+  const efScore = Math.max(0, Math.min(100, (efMonths / 6) * 100));
+  const healthScore = Math.round((adherence + Math.min(100, savingsRate) + efScore) / 3);
+  const healthBand = healthBandLabel(healthScore);
+
+  // Category breakdown
   const categoryBreakdown = useMemo(() => {
     const rows = CATEGORIES.filter((c) => c.group !== "income")
       .map((c) => ({
-        id: c.id,
-        name: c.name,
-        icon: c.icon,
+        id: c.id, name: c.name, icon: c.icon,
         amount: totals.byCat.get(c.id) ?? 0,
         budget: budgetFor(c.id),
         group: c.group,
@@ -131,14 +149,28 @@ function Dashboard() {
   const totalSpend = totals.spent || 1;
   const monthLabel = `${MONTHS[m]} ${y}`;
 
-  // Smart insights
+  // Miscellaneous warning
+  const miscAmount = totals.byCat.get("miscellaneous") ?? 0;
+  const miscShare = (miscAmount / totalSpend) * 100;
+  const miscWarn = miscShare > 10 && miscAmount > 0;
+
+  // Top savings goal
+  const topGoal = goals[0];
+  const goalPct = topGoal && Number(topGoal.target_amount) > 0
+    ? Math.min(100, (Number(topGoal.current_amount) / Number(topGoal.target_amount)) * 100)
+    : 0;
+
+  // Upcoming bills (next 30 days, unpaid)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const upcomingBills = bills
+    .filter((b) => !b.paid && b.due_date >= todayStr)
+    .slice(0, 6);
+
+  const recent = useMemo(() => all.slice(0, 6), [all]);
   const insights = buildInsights({
     totalSpend: totals.spent, prevSpent, byCat: totals.byCat,
     budgetFor, savingsContrib: totals.savingsContrib, onTrack, daysLeft, remainingBudget,
   });
-
-  // Recent activity (last 6)
-  const recent = useMemo(() => all.slice(0, 6), [all]);
 
   return (
     <div className="space-y-6 px-4 pt-6 sm:px-6">
@@ -170,32 +202,10 @@ function Dashboard() {
         </Select>
       </header>
 
-      {/* Top summary — 4 cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <MiniCard
-          label="Available Cash" value={availableCash}
-          icon={<Wallet className="h-4 w-4" />} tone="primary"
-          trend={pctChange(totals.income, prevTxns.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0))}
-        />
-        <MiniCard
-          label="Savings" value={savingsBalance}
-          icon={<PiggyBank className="h-4 w-4" />} tone="savings"
-          trend={totals.savingsContrib > 0 ? 100 : 0}
-          trendLabel={totals.savingsContrib > 0 ? `+${formatAED(totals.savingsContrib)} this mo` : "No contrib yet"}
-        />
-        <MiniCard
-          label="Total Debt" value={totalDebt}
-          icon={<CreditCard className="h-4 w-4" />} tone="destructive"
-          trendLabel={debts.length ? `${debts.length} active` : "Debt-free"}
-        />
-        <MiniCard
-          label="Net Worth" value={netWorth}
-          icon={<TrendingUp className="h-4 w-4" />} tone={netWorth >= 0 ? "investment" : "destructive"}
-          trendLabel="Cash + Savings − Debt"
-        />
-      </div>
+      {/* Money Flow */}
+      <MoneyFlowCard income={totals.income} expenses={totals.spent} saved={saved} />
 
-      {/* Safe-To-Spend hero */}
+      {/* Safe-To-Spend hero with explanation */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-primary p-6 text-primary-foreground shadow-glow">
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
         <div className="absolute -bottom-12 -left-12 h-44 w-44 rounded-full bg-white/10 blur-3xl" />
@@ -206,17 +216,97 @@ function Dashboard() {
           <p className="mt-2 font-display text-5xl font-bold tabular-nums">
             AED {formatAED(safeToSpend)}
           </p>
-          <div className="mt-4 flex items-center justify-between gap-3 text-sm">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 backdrop-blur">
-              {onTrack ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-              <span className="font-medium">{onTrack ? "On track" : "Overspending"}</span>
+
+          <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/10 p-3 backdrop-blur">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider opacity-80">Remaining budget</p>
+              <p className="mt-0.5 font-display text-lg font-semibold tabular-nums">
+                AED {formatAED(Math.max(0, remainingBudget))}
+              </p>
             </div>
-            <p className="opacity-90 tabular-nums">
-              {formatAED(Math.max(0, remainingBudget))} left · {daysLeft} day{daysLeft === 1 ? "" : "s"}
-            </p>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider opacity-80">Days remaining</p>
+              <p className="mt-0.5 font-display text-lg font-semibold tabular-nums">
+                {daysLeft} day{daysLeft === 1 ? "" : "s"}
+              </p>
+            </div>
           </div>
+
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm backdrop-blur">
+            {onTrack ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+            <span className="font-medium">
+              {onTrack ? "On plan" : "Spending above plan"}
+            </span>
+          </div>
+          <p className="mt-2 text-xs opacity-80">
+            Expected by today: AED {formatAED(expectedSpendByNow)} · actual AED {formatAED(totals.spent)}
+          </p>
         </div>
       </section>
+
+      {/* Forecast */}
+      <ForecastCard
+        forecastSpend={forecastSpend}
+        forecastSavings={forecastSavings}
+        budget={totals.totalBudget}
+      />
+
+      {/* Financial Health */}
+      <HealthCard score={healthScore} band={healthBand}
+        breakdown={{ adherence, savings: Math.min(100, savingsRate), emergency: efScore }} />
+
+      {/* Hierarchy summary: Large / Medium / 2 small */}
+      <div className="space-y-3">
+        <BigCard
+          label="Available Cash"
+          value={availableCash}
+          subtitle="Income − Expenses this month"
+          tone={availableCash >= 0 ? "primary" : "destructive"}
+        />
+        <MediumCard
+          label="Net Worth"
+          value={netWorth}
+          subtitle="Cash + Savings − Debt"
+          tone={netWorth >= 0 ? "investment" : "destructive"}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <SmallSavingsCard goal={topGoal} balance={savingsBalance} target={savingsTarget} pct={goalPct} />
+          <SmallCard
+            label="Total Debt"
+            value={totalDebt}
+            icon={<CreditCard className="h-4 w-4" />}
+            tone="destructive"
+            sub={debts.length ? `${debts.length} active` : "Debt-free"}
+          />
+        </div>
+      </div>
+
+      {/* Miscellaneous warning */}
+      {miscWarn && (
+        <section className="rounded-2xl border border-warning/40 bg-warning/10 p-4">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/20 text-warning">
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                Miscellaneous is {miscShare.toFixed(0)}% of spending
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                AED {formatAED(miscAmount)} sits in "Miscellaneous" — that's too much to be useful.
+                Re-tag those transactions to a real category (Medical, Gifts, Home, School, Car…) so
+                you actually know where it went.
+              </p>
+              <Link
+                to="/transactions"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-warning"
+              >
+                Review transactions <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Where did our money go */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
@@ -282,10 +372,7 @@ function Dashboard() {
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {insights.map((ins, i) => (
-              <div
-                key={i}
-                className={`rounded-2xl border border-border bg-card p-4 shadow-card`}
-              >
+              <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-card">
                 <div className="flex items-start gap-3">
                   <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ins.bg}`}>
                     <ins.icon className={`h-4 w-4 ${ins.fg}`} />
@@ -298,7 +385,10 @@ function Dashboard() {
         </section>
       )}
 
-      {/* Budget vs Actual — top categories */}
+      {/* Upcoming bills */}
+      <UpcomingBillsCard bills={upcomingBills} />
+
+      {/* Budget vs Actual */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold">Budget vs Actual</h2>
@@ -335,10 +425,10 @@ function Dashboard() {
         </ul>
       </section>
 
-      {/* Emergency fund mini */}
+      {/* Emergency fund */}
       <EmergencyFundCard
         savingsBalance={savingsBalance}
-        monthlyExpenses={Math.max(totals.spent, prevSpent, 1)}
+        monthlyExpenses={monthlyExpenses}
       />
 
       {/* Recent activity */}
@@ -363,11 +453,6 @@ function Dashboard() {
 
 // ---------- helpers ----------
 
-function pctChange(a: number, b: number) {
-  if (!b) return a > 0 ? 100 : 0;
-  return ((a - b) / b) * 100;
-}
-
 function topBudgetRows(
   byCat: Map<string, number>,
   budgetFor: (id: string) => number,
@@ -375,8 +460,7 @@ function topBudgetRows(
   return CATEGORIES
     .filter((c) => c.group !== "income")
     .map((c) => ({
-      id: c.id,
-      name: c.name,
+      id: c.id, name: c.name,
       actual: byCat.get(c.id) ?? 0,
       budget: budgetFor(c.id),
     }))
@@ -385,18 +469,21 @@ function topBudgetRows(
     .slice(0, 5);
 }
 
+function healthBandLabel(score: number) {
+  if (score >= 85) return { label: "Excellent", tone: "text-success", bg: "bg-success/15" };
+  if (score >= 70) return { label: "Healthy", tone: "text-savings", bg: "bg-savings/15" };
+  if (score >= 50) return { label: "Fair", tone: "text-warning", bg: "bg-warning/15" };
+  return { label: "Needs work", tone: "text-destructive", bg: "bg-destructive/15" };
+}
+
 function buildInsights(args: {
   totalSpend: number; prevSpent: number;
   byCat: Map<string, number>; budgetFor: (id: string) => number;
   savingsContrib: number; onTrack: boolean;
   daysLeft: number; remainingBudget: number;
 }) {
-  type Insight = {
-    text: string; icon: typeof Sparkles; bg: string; fg: string;
-  };
+  type Insight = { text: string; icon: typeof Sparkles; bg: string; fg: string };
   const out: Insight[] = [];
-
-  // Compare to last month
   if (args.prevSpent > 0) {
     const change = ((args.totalSpend - args.prevSpent) / args.prevSpent) * 100;
     if (Math.abs(change) >= 5) {
@@ -409,10 +496,7 @@ function buildInsights(args: {
       });
     }
   }
-
-  // Per-category increase/decrease
-  let topCatId = "";
-  let topCatAmt = 0;
+  let topCatId = "", topCatAmt = 0;
   for (const [id, amt] of args.byCat.entries()) {
     if (amt > topCatAmt) { topCatAmt = amt; topCatId = id; }
   }
@@ -422,75 +506,343 @@ function buildInsights(args: {
     if (budget > 0 && topCatAmt > budget * 0.8) {
       out.push({
         text: `${cat?.name} is at ${((topCatAmt / budget) * 100).toFixed(0)}% of its budget — your biggest spend so far.`,
-        icon: AlertCircle,
-        bg: "bg-warning/15",
-        fg: "text-warning",
+        icon: AlertCircle, bg: "bg-warning/15", fg: "text-warning",
       });
     }
   }
-
-  // Savings
   if (args.savingsContrib > 0) {
     out.push({
       text: `You've moved AED ${formatAED(args.savingsContrib)} to savings this month. Keep it up!`,
-      icon: CheckCircle2,
-      bg: "bg-savings/15",
-      fg: "text-savings",
+      icon: CheckCircle2, bg: "bg-savings/15", fg: "text-savings",
     });
   }
-
-  // Pace
   if (!args.onTrack) {
     out.push({
       text: `You may exceed your budget in ${args.daysLeft} day${args.daysLeft === 1 ? "" : "s"} at current pace.`,
-      icon: AlertCircle,
-      bg: "bg-destructive/15",
-      fg: "text-destructive",
+      icon: AlertCircle, bg: "bg-destructive/15", fg: "text-destructive",
     });
   }
-
   return out.slice(0, 4);
 }
 
-// ---------- subcomponents ----------
+// ---------- cards ----------
 
-function MiniCard({
-  label, value, icon, tone, trend, trendLabel,
-}: {
-  label: string; value: number; icon: React.ReactNode;
-  tone: "primary" | "savings" | "destructive" | "investment";
-  trend?: number; trendLabel?: string;
-}) {
-  const toneClass = {
-    primary: "text-primary bg-primary/15",
-    savings: "text-savings bg-savings/15",
-    destructive: "text-destructive bg-destructive/15",
-    investment: "text-investment bg-investment/15",
-  }[tone];
-
-  const trendNode = trendLabel ? (
-    <p className="mt-1 text-[11px] text-muted-foreground">{trendLabel}</p>
-  ) : trend != null ? (
-    <p className={`mt-1 inline-flex items-center gap-1 text-[11px] ${trend >= 0 ? "text-success" : "text-destructive"}`}>
-      {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {Math.abs(trend).toFixed(0)}% vs last
-    </p>
-  ) : null;
-
+function MoneyFlowCard({ income, expenses, saved }: { income: number; expenses: number; saved: number }) {
+  const total = Math.max(1, income);
+  const expPct = Math.min(100, (expenses / total) * 100);
+  const savPct = Math.max(0, 100 - expPct);
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
-      <div className="flex items-center justify-between">
-        <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${toneClass}`}>
-          {icon}
-        </span>
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-display text-lg font-semibold">Money Flow</h2>
+        <Activity className="h-4 w-4 text-muted-foreground" />
       </div>
-      <p className="mt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-0.5 font-display text-xl font-semibold tabular-nums">
-        <span className="text-xs font-normal text-muted-foreground">AED </span>
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <FlowStat label="Income" value={income} tone="text-success" icon={<ArrowDownRight className="h-3 w-3" />} />
+        <FlowStat label="Expenses" value={expenses} tone="text-destructive" icon={<ArrowUpRight className="h-3 w-3" />} />
+        <FlowStat label={saved >= 0 ? "Saved" : "Shortfall"} value={Math.abs(saved)} tone={saved >= 0 ? "text-savings" : "text-destructive"} icon={<PiggyBank className="h-3 w-3" />} />
+      </div>
+      <div className="mt-4 flex h-3 w-full overflow-hidden rounded-full bg-secondary/50">
+        <div className="h-full bg-destructive transition-all" style={{ width: `${expPct}%` }} />
+        <div className="h-full bg-savings transition-all" style={{ width: `${savPct}%` }} />
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
+        <span>{expPct.toFixed(0)}% spent</span>
+        <span>{savPct.toFixed(0)}% saved</span>
+      </div>
+    </section>
+  );
+}
+
+function FlowStat({ label, value, tone, icon }: { label: string; value: number; tone: string; icon: React.ReactNode }) {
+  return (
+    <div>
+      <div className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full ${tone} bg-secondary/60`}>
+        {icon}
+      </div>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={`mt-0.5 font-display text-sm font-semibold tabular-nums ${tone}`}>
         {formatAED(value)}
       </p>
-      {trendNode}
     </div>
+  );
+}
+
+function ForecastCard({ forecastSpend, forecastSavings, budget }: { forecastSpend: number; forecastSavings: number; budget: number }) {
+  const overBudget = budget > 0 && forecastSpend > budget;
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-3 flex items-center gap-2">
+        <CalendarClock className="h-4 w-4 text-accent" />
+        <h2 className="font-display text-lg font-semibold">Spending Forecast</h2>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl bg-secondary/40 p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Expected expenses</p>
+          <p className={`mt-1 font-display text-xl font-semibold tabular-nums ${overBudget ? "text-destructive" : "text-foreground"}`}>
+            AED {formatAED(forecastSpend)}
+          </p>
+          {budget > 0 && (
+            <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
+              vs budget AED {formatAED(budget)}
+            </p>
+          )}
+        </div>
+        <div className="rounded-xl bg-secondary/40 p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Expected savings</p>
+          <p className={`mt-1 font-display text-xl font-semibold tabular-nums ${forecastSavings >= 0 ? "text-savings" : "text-destructive"}`}>
+            AED {formatAED(Math.abs(forecastSavings))}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {forecastSavings >= 0 ? "Projected surplus" : "Projected shortfall"}
+          </p>
+        </div>
+      </div>
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        Based on current spending pace through end of month.
+      </p>
+    </section>
+  );
+}
+
+function HealthCard({ score, band, breakdown }: {
+  score: number; band: { label: string; tone: string; bg: string };
+  breakdown: { adherence: number; savings: number; emergency: number };
+}) {
+  const circumference = 2 * Math.PI * 36;
+  const offset = circumference - (score / 100) * circumference;
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-display text-lg font-semibold">Financial Health</h2>
+        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${band.bg} ${band.tone}`}>
+          {band.label}
+        </span>
+      </div>
+      <div className="flex items-center gap-5">
+        <div className="relative h-24 w-24 shrink-0">
+          <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
+            <circle cx="40" cy="40" r="36" stroke="currentColor" strokeWidth="6" fill="none" className="text-secondary/60" />
+            <circle cx="40" cy="40" r="36" stroke="currentColor" strokeWidth="6" fill="none"
+              strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
+              className={band.tone} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="font-display text-2xl font-bold tabular-nums">{score}</span>
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">/ 100</span>
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <HealthRow label="Budget adherence" value={breakdown.adherence} />
+          <HealthRow label="Savings rate" value={breakdown.savings} />
+          <HealthRow label="Emergency fund" value={breakdown.emergency} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HealthRow({ label, value }: { label: string; value: number }) {
+  const v = Math.round(value);
+  return (
+    <div>
+      <div className="mb-0.5 flex justify-between text-[11px]">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium tabular-nums">{v}</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/50">
+        <div className="h-full rounded-full bg-gradient-primary" style={{ width: `${v}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function BigCard({ label, value, subtitle, tone }: {
+  label: string; value: number; subtitle: string;
+  tone: "primary" | "destructive";
+}) {
+  const grad = tone === "primary" ? "bg-gradient-primary" : "bg-destructive";
+  return (
+    <section className={`relative overflow-hidden rounded-2xl ${grad} p-5 text-primary-foreground shadow-card`}>
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-medium uppercase tracking-widest opacity-80">{label}</p>
+        <Wallet className="h-4 w-4 opacity-80" />
+      </div>
+      <p className="mt-2 font-display text-3xl font-bold tabular-nums">
+        <span className="text-sm font-normal opacity-80">AED </span>{formatAED(value)}
+      </p>
+      <p className="mt-1 text-xs opacity-80">{subtitle}</p>
+    </section>
+  );
+}
+
+function MediumCard({ label, value, subtitle, tone }: {
+  label: string; value: number; subtitle: string;
+  tone: "investment" | "destructive";
+}) {
+  const toneClass = tone === "investment" ? "text-investment bg-investment/15" : "text-destructive bg-destructive/15";
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-card">
+      <div className="flex items-center justify-between">
+        <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${toneClass}`}>
+          <TrendingUp className="h-4 w-4" />
+        </span>
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      </div>
+      <p className="mt-2 font-display text-2xl font-semibold tabular-nums">
+        <span className="text-xs font-normal text-muted-foreground">AED </span>{formatAED(value)}
+      </p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>
+    </section>
+  );
+}
+
+function SmallCard({ label, value, icon, tone, sub }: {
+  label: string; value: number; icon: React.ReactNode;
+  tone: "savings" | "destructive"; sub?: string;
+}) {
+  const toneClass = tone === "savings" ? "text-savings bg-savings/15" : "text-destructive bg-destructive/15";
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+      <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${toneClass}`}>
+        {icon}
+      </span>
+      <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-0.5 font-display text-base font-semibold tabular-nums">
+        <span className="text-[10px] font-normal text-muted-foreground">AED </span>{formatAED(value)}
+      </p>
+      {sub && <p className="mt-0.5 text-[10px] text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+function SmallSavingsCard({ goal, balance, target, pct }: {
+  goal: { name: string } | undefined; balance: number; target: number; pct: number;
+}) {
+  if (!goal || target === 0) {
+    return (
+      <Link
+        to="/goals"
+        className="flex flex-col rounded-2xl border border-dashed border-border bg-card p-4 shadow-card transition hover:border-savings/60"
+      >
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-savings/15 text-savings">
+          <Target className="h-4 w-4" />
+        </span>
+        <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Savings goal</p>
+        <p className="mt-0.5 text-sm font-semibold text-foreground">No active goal</p>
+        <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-savings">
+          Create one <ChevronRight className="h-3 w-3" />
+        </p>
+      </Link>
+    );
+  }
+  return (
+    <Link to="/goals" className="block rounded-2xl border border-border bg-card p-4 shadow-card">
+      <div className="flex items-center justify-between">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-savings/15 text-savings">
+          <PiggyBank className="h-4 w-4" />
+        </span>
+        <span className="text-[10px] font-semibold tabular-nums text-savings">{pct.toFixed(0)}%</span>
+      </div>
+      <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {goal.name}
+      </p>
+      <p className="mt-0.5 font-display text-sm font-semibold tabular-nums">
+        AED {formatAED(balance)} <span className="text-[10px] font-normal text-muted-foreground">/ {formatAED(target)}</span>
+      </p>
+      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-secondary/50">
+        <div className="h-full rounded-full bg-gradient-savings" style={{ width: `${pct}%` }} />
+      </div>
+    </Link>
+  );
+}
+
+function UpcomingBillsCard({ bills }: { bills: Bill[] }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [due, setDue] = useState(() => new Date().toISOString().slice(0, 10));
+
+  async function add() {
+    if (!name.trim() || !amount) return;
+    try {
+      await billsStore.add({ name: name.trim(), amount: Number(amount), due_date: due });
+      setName(""); setAmount(""); setOpen(false);
+      toast.success("Bill added");
+    } catch (e) {
+      toast.error("Failed to add bill");
+    }
+  }
+  async function markPaid(id: string) {
+    try { await billsStore.update(id, { paid: true }); toast.success("Marked paid"); }
+    catch { toast.error("Failed"); }
+  }
+  async function del(id: string) {
+    try { await billsStore.remove(id); toast.success("Deleted"); }
+    catch { toast.error("Failed"); }
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-primary" />
+          <h2 className="font-display text-lg font-semibold">Upcoming Bills</h2>
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)} className="h-7 gap-1 px-2 text-xs">
+          <Plus className="h-3.5 w-3.5" /> Add
+        </Button>
+      </div>
+
+      {open && (
+        <div className="mb-3 grid grid-cols-1 gap-2 rounded-xl bg-secondary/30 p-3 sm:grid-cols-[1fr_auto_auto_auto]">
+          <Input placeholder="Bill name" value={name} onChange={(e) => setName(e.target.value)} className="h-9" />
+          <Input placeholder="Amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9 sm:w-24" />
+          <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="h-9 sm:w-40" />
+          <Button size="sm" onClick={add} className="h-9">Save</Button>
+        </div>
+      )}
+
+      {bills.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No upcoming bills. Add Internet, School fees, Insurance…
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {bills.map((b) => {
+            const days = Math.max(0, Math.ceil((new Date(b.due_date).getTime() - Date.now()) / 86400000));
+            const urgent = days <= 3;
+            return (
+              <li key={b.id} className="flex items-center gap-3 rounded-xl bg-secondary/30 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{b.name}</p>
+                  <p className={`text-[11px] ${urgent ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                    Due in {days} day{days === 1 ? "" : "s"} · {new Date(b.due_date).toLocaleDateString("en-AE", { day: "2-digit", month: "short" })}
+                  </p>
+                </div>
+                <p className="shrink-0 font-display text-sm font-semibold tabular-nums">
+                  AED {formatAED(Number(b.amount))}
+                </p>
+                <button
+                  onClick={() => markPaid(b.id)}
+                  className="rounded-md p-1.5 text-success hover:bg-success/15"
+                  title="Mark paid"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => del(b.id)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                  title="Delete"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -546,6 +898,3 @@ function ActivityRow({ t }: { t: Txn }) {
     </li>
   );
 }
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _Unused = CategoryGroup;
