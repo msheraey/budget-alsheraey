@@ -134,7 +134,7 @@ function Dashboard() {
   // Smart insights
   const insights = buildInsights({
     totalSpend: totals.spent, prevSpent, byCat: totals.byCat,
-    budgetFor, savingsContrib, onTrack, daysLeft, remainingBudget,
+    budgetFor, savingsContrib: totals.savingsContrib, onTrack, daysLeft, remainingBudget,
   });
 
   // Recent activity (last 6)
