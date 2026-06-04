@@ -72,4 +72,4 @@ export const MONTHS = [
 ] as const;
 
 export const PAYMENT_METHODS = ["Cash", "Card", "Bank transfer", "Wallet"] as const;
-export const MEMBERS = ["Mohammed", "Wife"] as const;
+export const MEMBERS = ["Mohammed", "Aprille"] as const;
