@@ -17,12 +17,17 @@ import {
   deleteTransaction, useTransactions, type Txn,
 } from "@/lib/transactions-store";
 
+type TxnSearch = { category?: string };
+
 export const Route = createFileRoute("/_app/transactions")({
   head: () => ({
     meta: [
-      { title: "Transactions — Ledger" },
+      { title: "Transactions — FluentBudget" },
       { name: "description", content: "All income and expense transactions." },
     ],
+  }),
+  validateSearch: (s: Record<string, unknown>): TxnSearch => ({
+    category: typeof s.category === "string" ? s.category : undefined,
   }),
   component: TransactionsPage,
 });
@@ -30,12 +35,13 @@ export const Route = createFileRoute("/_app/transactions")({
 const ANY = "__any__";
 
 function TransactionsPage() {
+  const search = Route.useSearch();
   const { data: txns, loading } = useTransactions();
   const [editing, setEditing] = useState<Txn | null>(null);
 
   const [query, setQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [fCategory, setFCategory] = useState<string>(ANY);
+  const [showFilters, setShowFilters] = useState<boolean>(!!search.category);
+  const [fCategory, setFCategory] = useState<string>(search.category ?? ANY);
   const [fType, setFType] = useState<string>(ANY);
   const [fUser, setFUser] = useState<string>(ANY);
   const [fPayment, setFPayment] = useState<string>(ANY);
