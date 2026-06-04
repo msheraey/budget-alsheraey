@@ -178,7 +178,7 @@ function Dashboard() {
       <header className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Family budget
+            Hello, Aprille ✨
           </p>
           <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
             {monthLabel}

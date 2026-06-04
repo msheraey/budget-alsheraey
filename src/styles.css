@@ -54,138 +54,140 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* ---------- DARK (default) — cozy plum + teal + coral ---------- */
+/* ---------- DARK (default) — aubergine night, coral→violet glow ---------- */
 :root {
-  --radius: 1.25rem;
+  --radius: 1.1rem;
 
-  --background: #2A1E3D;                /* deep plum */
-  --foreground: #F5EEE6;                /* off-white */
+  --background: #14101F;                /* deep ink-aubergine */
+  --foreground: #F4EEE6;                /* warm off-white */
 
-  --surface: #6B3E2E;                   /* deep peach */
-  --surface-2: #794A38;
+  --surface: #1F1830;
+  --surface-2: #271F3D;
 
-  --card: #2D4A5C;                      /* muted teal */
-  --card-foreground: #F5EEE6;
+  --card: #1C1530;                      /* elevated card */
+  --card-foreground: #F4EEE6;
 
-  --popover: #34284A;
-  --popover-foreground: #F5EEE6;
+  --popover: #1C1530;
+  --popover-foreground: #F4EEE6;
 
-  --primary: #E8866A;                   /* coral (desaturated) */
-  --primary-foreground: #2A1E3D;
-  --primary-glow: #F2A488;
+  --primary: #FF7A6B;                   /* coral */
+  --primary-foreground: #1A0F1B;
+  --primary-glow: #FF9F8A;
 
-  --secondary: #6B3E2E;                 /* deep peach */
-  --secondary-foreground: #F5EEE6;
+  --secondary: #271F3D;
+  --secondary-foreground: #F4EEE6;
 
-  --muted: #3B2C52;
-  --muted-foreground: #C9BCD8;
+  --muted: #221A36;
+  --muted-foreground: #B4A7C8;
 
-  --accent: #9B8EC2;                    /* soft lavender */
-  --accent-foreground: #2A1E3D;
+  --accent: #9F8CFF;                    /* electric lavender */
+  --accent-foreground: #14101F;
 
-  --destructive: #B95C3A;               /* dusty terracotta */
-  --destructive-foreground: #F5EEE6;
+  --destructive: #FF6369;               /* ruby coral */
+  --destructive-foreground: #1A0F1B;
 
-  --success: #7EC4A3;                   /* gentle mint */
-  --success-foreground: #2A1E3D;
+  --success: #3FE3B0;                   /* mint */
+  --success-foreground: #0E2A22;
 
-  --warning: #E6B422;                   /* warm gold */
-  --warning-foreground: #2A1E3D;
+  --warning: #FFC34D;                   /* amber */
+  --warning-foreground: #2A1A04;
 
-  --savings: #E6B422;
-  --investment: #9B8EC2;
+  --savings: #FFC34D;
+  --investment: #9F8CFF;
 
-  --border: rgb(255 255 255 / 0.10);
-  --input: #3B2C52;
-  --ring: #E8866A;
+  --border: rgb(255 255 255 / 0.08);
+  --input: #271F3D;
+  --ring: #FF7A6B;
 
-  --sidebar: #34284A;
-  --sidebar-foreground: #E5DCEF;
-  --sidebar-primary: #E8866A;
-  --sidebar-primary-foreground: #2A1E3D;
-  --sidebar-accent: #3B2C52;
-  --sidebar-accent-foreground: #F5EEE6;
-  --sidebar-border: rgb(255 255 255 / 0.08);
-  --sidebar-ring: #E8866A;
+  --sidebar: #1A1330;
+  --sidebar-foreground: #E8DFF4;
+  --sidebar-primary: #FF7A6B;
+  --sidebar-primary-foreground: #14101F;
+  --sidebar-accent: #271F3D;
+  --sidebar-accent-foreground: #F4EEE6;
+  --sidebar-border: rgb(255 255 255 / 0.06);
+  --sidebar-ring: #FF7A6B;
 
-  --gradient-primary: linear-gradient(135deg, #E8866A, #E6B422);
-  --gradient-expense: linear-gradient(135deg, #B95C3A, #E8866A);
-  --gradient-savings: linear-gradient(135deg, #E6B422, #F2A488);
-  --gradient-investment: linear-gradient(135deg, #9B8EC2, #E8866A);
-  --gradient-surface: linear-gradient(180deg, #2D4A5C, #244055);
+  --gradient-primary: linear-gradient(135deg, #FF7A6B 0%, #C46BFF 55%, #6E7BFF 100%);
+  --gradient-expense: linear-gradient(135deg, #FF6369, #FF9F8A);
+  --gradient-savings: linear-gradient(135deg, #FFC34D, #FF7A6B);
+  --gradient-investment: linear-gradient(135deg, #9F8CFF, #FF7A6B);
+  --gradient-surface: linear-gradient(180deg, #221A36, #1A1330);
   --gradient-glow:
-    radial-gradient(circle at 10% 0%, rgb(232 134 106 / 0.20), transparent 55%),
-    radial-gradient(circle at 90% 10%, rgb(155 142 194 / 0.22), transparent 55%);
+    radial-gradient(900px 500px at 8% -10%, rgb(255 122 107 / 0.22), transparent 60%),
+    radial-gradient(800px 500px at 100% 0%, rgb(159 140 255 / 0.22), transparent 60%),
+    radial-gradient(700px 500px at 50% 110%, rgb(110 123 255 / 0.15), transparent 60%);
 
-  --shadow-glow: 0 18px 50px -22px rgb(232 134 106 / 0.55);
-  --shadow-card: 0 10px 30px -14px rgb(0 0 0 / 0.45);
-  --shadow-fab:  0 14px 30px -8px  rgb(232 134 106 / 0.55);
+  --shadow-glow: 0 24px 60px -22px rgb(255 122 107 / 0.55);
+  --shadow-card: 0 14px 40px -20px rgb(0 0 0 / 0.65);
+  --shadow-fab:  0 18px 36px -10px rgb(255 122 107 / 0.55);
 }
 
-/* ---------- LIGHT — butter + mint + peach + coral ---------- */
+/* ---------- LIGHT — cream sunrise, coral→violet glow ---------- */
 .light {
-  --background: #FFF3C7;                /* butter yellow */
-  --foreground: #2E2A24;                /* dark charcoal */
+  --background: #FBF7F1;                /* warm cream */
+  --foreground: #1A1426;                /* deep ink */
 
-  --surface: #FFD6BA;                   /* peach nectar */
-  --surface-2: #FFE3CE;
+  --surface: #FFFFFF;
+  --surface-2: #F4EEE4;
 
-  --card: #B9FBC0;                      /* fresh mint */
-  --card-foreground: #2E2A24;
+  --card: #FFFFFF;
+  --card-foreground: #1A1426;
 
   --popover: #FFFFFF;
-  --popover-foreground: #2E2A24;
+  --popover-foreground: #1A1426;
 
-  --primary: #FF9F7C;                   /* coral crush */
-  --primary-foreground: #3A1F14;
-  --primary-glow: #FFB99B;
+  --primary: #FF5E5B;                   /* signature coral */
+  --primary-foreground: #FFF7F3;
+  --primary-glow: #FF8A7C;
 
-  --secondary: #FFD6BA;                 /* peach nectar */
-  --secondary-foreground: #5B3A28;
+  --secondary: #FFE9DC;                 /* peach */
+  --secondary-foreground: #5A2E22;
 
-  --muted: #FFE6C4;
-  --muted-foreground: #6B5A45;
+  --muted: #F1ECE3;
+  --muted-foreground: #6B5E76;
 
-  --accent: #C5B9F0;                    /* gentle lavender */
-  --accent-foreground: #2E2245;
+  --accent: #7C5CFF;                    /* electric violet */
+  --accent-foreground: #FFFFFF;
 
-  --destructive: #E07A5F;               /* warm terracotta */
-  --destructive-foreground: #FFF6EE;
+  --destructive: #E5484D;
+  --destructive-foreground: #FFF7F3;
 
-  --success: #6FBF73;                   /* mint-leaning green */
-  --success-foreground: #143018;
+  --success: #1FB582;                   /* fresh mint */
+  --success-foreground: #052418;
 
-  --warning: #F2C94C;                   /* honey gold */
-  --warning-foreground: #3A2A05;
+  --warning: #FFB020;
+  --warning-foreground: #2A1A04;
 
-  --savings: #F2C94C;
-  --investment: #C5B9F0;
+  --savings: #FFB020;
+  --investment: #7C5CFF;
 
-  --border: rgb(94 58 30 / 0.14);
-  --input: #FFE3CE;
-  --ring: #FF9F7C;
+  --border: rgb(26 20 38 / 0.10);
+  --input: #F1ECE3;
+  --ring: #FF5E5B;
 
-  --sidebar: #FFE3CE;
-  --sidebar-foreground: #4A3826;
-  --sidebar-primary: #FF9F7C;
-  --sidebar-primary-foreground: #3A1F14;
-  --sidebar-accent: #C5B9F0;
-  --sidebar-accent-foreground: #2E2245;
-  --sidebar-border: rgb(94 58 30 / 0.12);
-  --sidebar-ring: #FF9F7C;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #2A2236;
+  --sidebar-primary: #FF5E5B;
+  --sidebar-primary-foreground: #FFF7F3;
+  --sidebar-accent: #FFE9DC;
+  --sidebar-accent-foreground: #5A2E22;
+  --sidebar-border: rgb(26 20 38 / 0.08);
+  --sidebar-ring: #FF5E5B;
 
-  --gradient-primary: linear-gradient(135deg, #FF9F7C, #F2C94C);
-  --gradient-expense: linear-gradient(135deg, #E07A5F, #FF9F7C);
-  --gradient-savings: linear-gradient(135deg, #F2C94C, #FFD6BA);
-  --gradient-investment: linear-gradient(135deg, #C5B9F0, #FF9F7C);
-  --gradient-surface: linear-gradient(180deg, #B9FBC0, #D6FBD7);
+  --gradient-primary: linear-gradient(135deg, #FF5E5B 0%, #B45CFF 55%, #5C7BFF 100%);
+  --gradient-expense: linear-gradient(135deg, #E5484D, #FF8A7C);
+  --gradient-savings: linear-gradient(135deg, #FFB020, #FF7A6B);
+  --gradient-investment: linear-gradient(135deg, #7C5CFF, #FF5E5B);
+  --gradient-surface: linear-gradient(180deg, #FFFFFF, #FBF4EA);
   --gradient-glow:
-    radial-gradient(circle at 10% 0%, rgb(197 185 240 / 0.55), transparent 55%),
-    radial-gradient(circle at 90% 10%, rgb(255 159 124 / 0.35), transparent 55%);
+    radial-gradient(900px 500px at 8% -10%, rgb(255 94 91 / 0.18), transparent 60%),
+    radial-gradient(800px 500px at 100% 0%, rgb(124 92 255 / 0.16), transparent 60%),
+    radial-gradient(700px 500px at 50% 110%, rgb(255 176 32 / 0.14), transparent 60%);
 
-  --shadow-glow: 0 18px 50px -22px rgb(255 159 124 / 0.55);
-  --shadow-card: 0 10px 28px -16px rgb(94 58 30 / 0.25);
-  --shadow-fab:  0 14px 30px -8px  rgb(255 159 124 / 0.50);
+  --shadow-glow: 0 24px 60px -24px rgb(255 94 91 / 0.45);
+  --shadow-card: 0 14px 40px -22px rgb(26 20 38 / 0.18);
+  --shadow-fab:  0 18px 36px -12px rgb(255 94 91 / 0.45);
 }
 
 @layer base {
