@@ -22,7 +22,7 @@ export interface Category {
 export const CATEGORIES: Category[] = [
   // Income
   { id: "my-salary",        name: "My salary",         group: "income",   budget: 6500, icon: Briefcase, color: "primary" },
-  { id: "wife-salary",      name: "Wife salary",       group: "income",   budget: 7000, icon: Briefcase, color: "primary" },
+  { id: "wife-salary",      name: "Aprille salary",    group: "income",   budget: 7000, icon: Briefcase, color: "primary" },
   { id: "other-income",     name: "Other income",      group: "income",   budget: 0,    icon: Plus, color: "primary" },
 
   // Fixed expenses
