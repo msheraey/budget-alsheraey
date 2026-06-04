@@ -8,6 +8,8 @@ export type Txn = {
   type: "income" | "expense";
   occurred_on: string; // YYYY-MM-DD
   note: string | null;
+  added_by: string | null;
+  payment_method: string | null;
   created_at: string;
 };
 

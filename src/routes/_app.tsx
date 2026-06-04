@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { BottomNav } from "@/components/bottom-nav";
+import { QuickAddFab } from "@/components/quick-add-fab";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -8,23 +8,12 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background">
-        <AppSidebar />
-        <div className="flex flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/60 bg-background/60 px-4 backdrop-blur">
-            <SidebarTrigger />
-            <div className="ml-2 text-sm text-muted-foreground">
-              <span className="font-display text-foreground">Ledger</span>
-              <span className="mx-2 text-border">/</span>
-              Personal budget tracker
-            </div>
-          </header>
-          <main className="flex-1">
-            <Outlet />
-          </main>
-        </div>
-      </div>
-    </SidebarProvider>
+    <div className="min-h-screen bg-background pb-24 text-foreground">
+      <main className="mx-auto w-full max-w-3xl">
+        <Outlet />
+      </main>
+      <QuickAddFab />
+      <BottomNav />
+    </div>
   );
 }

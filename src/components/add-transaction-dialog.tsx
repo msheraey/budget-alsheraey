@@ -23,7 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CATEGORIES, GROUP_LABELS, type CategoryGroup } from "@/lib/categories";
+import {
+  CATEGORIES,
+  GROUP_LABELS,
+  MEMBERS,
+  PAYMENT_METHODS,
+  type CategoryGroup,
+} from "@/lib/categories";
 import {
   addTransaction,
   updateTransaction,
@@ -33,44 +39,46 @@ import {
 const GROUP_ORDER: CategoryGroup[] = ["income", "fixed", "variable", "savings"];
 
 type Props =
-  | { defaultMonth: Date; editing?: undefined }
-  | {
-      editing: Txn;
-      open: boolean;
-      onOpenChange: (open: boolean) => void;
-      defaultMonth?: undefined;
-    };
+  | { defaultMonth: Date; editing?: undefined; controlled?: undefined; open?: undefined; onOpenChange?: undefined }
+  | { defaultMonth: Date; controlled: true; open: boolean; onOpenChange: (o: boolean) => void; editing?: undefined }
+  | { editing: Txn; open: boolean; onOpenChange: (o: boolean) => void; defaultMonth?: undefined; controlled?: undefined };
 
 export function AddTransactionDialog(props: Props) {
   const isEdit = "editing" in props && !!props.editing;
+  const isControlled = isEdit || ("controlled" in props && props.controlled);
   const [internalOpen, setInternalOpen] = useState(false);
-  const open = isEdit ? props.open : internalOpen;
-  const setOpen = isEdit ? props.onOpenChange : setInternalOpen;
+  const open = isControlled ? (props.open as boolean) : internalOpen;
+  const setOpen = isControlled ? (props.onOpenChange as (o: boolean) => void) : setInternalOpen;
 
-  const [type, setType] = useState<"expense" | "income">(
-    isEdit ? props.editing.type : "expense",
+  const initialDate = isEdit
+    ? (props.editing as Txn).occurred_on
+    : (props.defaultMonth as Date).toISOString().slice(0, 10);
+
+  const [type, setType] = useState<"expense" | "income">(isEdit ? (props.editing as Txn).type : "expense");
+  const [categoryId, setCategoryId] = useState<string>(isEdit ? (props.editing as Txn).category : "");
+  const [amount, setAmount] = useState(isEdit ? String((props.editing as Txn).amount) : "");
+  const [note, setNote] = useState(isEdit ? (props.editing as Txn).note ?? "" : "");
+  const [date, setDate] = useState(initialDate);
+  const [addedBy, setAddedBy] = useState<string>(
+    isEdit ? (props.editing as Txn).added_by ?? MEMBERS[0] : MEMBERS[0],
   );
-  const [categoryId, setCategoryId] = useState<string>(
-    isEdit ? props.editing.category : "",
-  );
-  const [amount, setAmount] = useState(isEdit ? String(props.editing.amount) : "");
-  const [note, setNote] = useState(isEdit ? props.editing.note ?? "" : "");
-  const [date, setDate] = useState(() =>
-    isEdit
-      ? props.editing.occurred_on
-      : (props.defaultMonth as Date).toISOString().slice(0, 10),
+  const [paymentMethod, setPaymentMethod] = useState<string>(
+    isEdit ? (props.editing as Txn).payment_method ?? PAYMENT_METHODS[0] : PAYMENT_METHODS[0],
   );
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (isEdit && open) {
-      setType(props.editing.type);
-      setCategoryId(props.editing.category);
-      setAmount(String(props.editing.amount));
-      setNote(props.editing.note ?? "");
-      setDate(props.editing.occurred_on);
+      const e = props.editing as Txn;
+      setType(e.type);
+      setCategoryId(e.category);
+      setAmount(String(e.amount));
+      setNote(e.note ?? "");
+      setDate(e.occurred_on);
+      setAddedBy(e.added_by ?? MEMBERS[0]);
+      setPaymentMethod(e.payment_method ?? PAYMENT_METHODS[0]);
     }
-  }, [isEdit, open, isEdit ? props.editing : null]);
+  }, [isEdit, open, isEdit ? (props.editing as Txn) : null]);
 
   const visibleCats = CATEGORIES.filter((c) =>
     type === "income" ? c.group === "income" : c.group !== "income",
@@ -90,13 +98,15 @@ export function AddTransactionDialog(props: Props) {
         type,
         occurred_on: date,
         note: note || null,
+        added_by: addedBy,
+        payment_method: paymentMethod,
       };
       if (isEdit) {
-        await updateTransaction(props.editing.id, payload);
-        toast.success("Transaction updated");
+        await updateTransaction((props.editing as Txn).id, payload);
+        toast.success("Updated");
       } else {
         await addTransaction(payload);
-        toast.success("Transaction added");
+        toast.success("Saved");
         setAmount("");
         setNote("");
         setCategoryId("");
@@ -111,26 +121,24 @@ export function AddTransactionDialog(props: Props) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {!isEdit && (
+      {!isControlled && (
         <DialogTrigger asChild>
           <Button
             size="lg"
             className="gap-2 bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
           >
             <Plus className="h-4 w-4" />
-            Add transaction
+            Add
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display">
-            {isEdit ? "Edit transaction" : "New transaction"}
+            {isEdit ? "Edit transaction" : "Quick add"}
           </DialogTitle>
           <DialogDescription>
-            {isEdit
-              ? "Update any field and save."
-              : "Track an expense or income against your budget."}
+            {isEdit ? "Update and save." : "Log it in under 5 seconds."}
           </DialogDescription>
         </DialogHeader>
 
@@ -149,53 +157,82 @@ export function AddTransactionDialog(props: Props) {
           </Tabs>
 
           <div className="space-y-2">
+            <Label>Amount (AED)</Label>
+            <Input
+              autoFocus
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="h-12 text-2xl font-display tabular-nums"
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label>Category</Label>
             <Select value={categoryId} onValueChange={setCategoryId}>
               <SelectTrigger>
                 <SelectValue placeholder="Pick a category" />
               </SelectTrigger>
               <SelectContent>
-                {GROUP_ORDER.filter((g) => visibleCats.some((c) => c.group === g)).map(
-                  (g) => (
-                    <SelectGroup key={g}>
-                      <SelectLabel>{GROUP_LABELS[g]}</SelectLabel>
-                      {visibleCats
-                        .filter((c) => c.group === g)
-                        .map((c) => (
+                {GROUP_ORDER.filter((g) => visibleCats.some((c) => c.group === g)).map((g) => (
+                  <SelectGroup key={g}>
+                    <SelectLabel>{GROUP_LABELS[g]}</SelectLabel>
+                    {visibleCats
+                      .filter((c) => c.group === g)
+                      .map((c) => {
+                        const Icon = c.icon;
+                        return (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.name}
+                            <span className="inline-flex items-center gap-2">
+                              <Icon className="h-3.5 w-3.5" /> {c.name}
+                            </span>
                           </SelectItem>
-                        ))}
-                    </SelectGroup>
-                  ),
-                )}
+                        );
+                      })}
+                  </SelectGroup>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Amount (AED)</Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
+              <Label>Added by</Label>
+              <Select value={addedBy} onValueChange={setAddedBy}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MEMBERS.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Date</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Label>Payment</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Date</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
 
           <div className="space-y-2">
             <Label>Note (optional)</Label>
             <Input
-              placeholder="e.g. supermarket run"
+              placeholder="e.g. supermarket"
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
@@ -205,7 +242,7 @@ export function AddTransactionDialog(props: Props) {
             <Button
               type="submit"
               disabled={saving}
-              className="bg-gradient-primary text-primary-foreground"
+              className="w-full bg-gradient-primary text-primary-foreground shadow-glow"
             >
               {saving ? "Saving…" : isEdit ? (
                 <span className="inline-flex items-center gap-1">
