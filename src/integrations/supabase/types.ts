@@ -14,32 +14,212 @@ export type Database = {
   }
   public: {
     Tables: {
-      transactions: {
+      achievements: {
+        Row: {
+          id: string
+          key: string
+          unlocked_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          unlocked_at?: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          unlocked_at?: string
+        }
+        Relationships: []
+      }
+      category_budgets: {
         Row: {
           amount: number
           category: string
           created_at: string
           id: string
-          note: string | null
-          occurred_on: string
-          type: Database["public"]["Enums"]["txn_type"]
+          updated_at: string
         }
         Insert: {
-          amount: number
+          amount?: number
           category: string
           created_at?: string
           id?: string
-          note?: string | null
-          occurred_on?: string
-          type: Database["public"]["Enums"]["txn_type"]
+          updated_at?: string
         }
         Update: {
           amount?: number
           category?: string
           created_at?: string
           id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      debts: {
+        Row: {
+          balance: number
+          created_at: string
+          debt_type: string
+          due_date: string | null
+          id: string
+          monthly_payment: number
+          name: string
+          original_amount: number
+          updated_at: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          debt_type?: string
+          due_date?: string | null
+          id?: string
+          monthly_payment?: number
+          name: string
+          original_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          debt_type?: string
+          due_date?: string | null
+          id?: string
+          monthly_payment?: number
+          name?: string
+          original_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      monthly_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          month: number
+          notes: string | null
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: number
+          notes?: string | null
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: number
+          notes?: string | null
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      savings_goals: {
+        Row: {
+          color: string | null
+          created_at: string
+          current_amount: number
+          icon: string | null
+          id: string
+          name: string
+          target_amount: number
+          target_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          current_amount?: number
+          icon?: string | null
+          id?: string
+          name: string
+          target_amount?: number
+          target_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          current_amount?: number
+          icon?: string | null
+          id?: string
+          name?: string
+          target_amount?: number
+          target_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          amount: number
+          billing_cycle: string
+          created_at: string
+          icon: string | null
+          id: string
+          name: string
+          next_renewal: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          billing_cycle?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name: string
+          next_renewal?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          billing_cycle?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name?: string
+          next_renewal?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          added_by: string | null
+          amount: number
+          category: string
+          created_at: string
+          id: string
+          note: string | null
+          occurred_on: string
+          payment_method: string | null
+          type: Database["public"]["Enums"]["txn_type"]
+        }
+        Insert: {
+          added_by?: string | null
+          amount: number
+          category: string
+          created_at?: string
+          id?: string
           note?: string | null
           occurred_on?: string
+          payment_method?: string | null
+          type: Database["public"]["Enums"]["txn_type"]
+        }
+        Update: {
+          added_by?: string | null
+          amount?: number
+          category?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          occurred_on?: string
+          payment_method?: string | null
           type?: Database["public"]["Enums"]["txn_type"]
         }
         Relationships: []
