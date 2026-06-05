@@ -59,26 +59,28 @@
   --radius: 1.1rem;
 
   --background: #14101F;                /* deep ink-aubergine */
-  --foreground: #F4EEE6;                /* warm off-white */
+  --foreground: #F6F1EA;                /* warm off-white */
 
   --surface: #1F1830;
   --surface-2: #271F3D;
 
-  --card: #1C1530;                      /* elevated card */
-  --card-foreground: #F4EEE6;
+  --card: rgb(36 28 60 / 0.62);         /* translucent glass */
+  --card-foreground: #F6F1EA;
+  --card-solid: #1C1530;
 
   --popover: #1C1530;
-  --popover-foreground: #F4EEE6;
+  --popover-foreground: #F6F1EA;
 
   --primary: #FF7A6B;                   /* coral */
   --primary-foreground: #1A0F1B;
   --primary-glow: #FF9F8A;
 
-  --secondary: #271F3D;
-  --secondary-foreground: #F4EEE6;
+  --secondary: #2D2348;
+  --secondary-foreground: #F6F1EA;
 
   --muted: #221A36;
-  --muted-foreground: #B4A7C8;
+  --muted-foreground: #CFC3E2;          /* bumped contrast */
+
 
   --accent: #9F8CFF;                    /* electric lavender */
   --accent-foreground: #14101F;
@@ -131,8 +133,9 @@
   --surface: #FFFFFF;
   --surface-2: #F4EEE4;
 
-  --card: #FFFFFF;
+  --card: rgb(255 255 255 / 0.62);      /* translucent glass */
   --card-foreground: #1A1426;
+  --card-solid: #FFFFFF;
 
   --popover: #FFFFFF;
   --popover-foreground: #1A1426;
@@ -145,7 +148,8 @@
   --secondary-foreground: #5A2E22;
 
   --muted: #F1ECE3;
-  --muted-foreground: #6B5E76;
+  --muted-foreground: #4F4458;          /* bumped contrast */
+
 
   --accent: #7C5CFF;                    /* electric violet */
   --accent-foreground: #FFFFFF;
@@ -228,9 +232,72 @@
   .bg-gradient-savings { background-image: var(--gradient-savings); }
   .bg-gradient-investment { background-image: var(--gradient-investment); }
   .bg-gradient-surface { background-image: var(--gradient-surface); }
-  .shadow-glow { box-shadow: var(--shadow-glow); }
-  .shadow-card { box-shadow: var(--shadow-card); }
   .shadow-fab { box-shadow: var(--shadow-fab); }
   .text-balance { text-wrap: balance; }
   .tabular-nums { font-variant-numeric: tabular-nums; }
+}
+
+/* ---------- Glass + 3D interactive surfaces ---------- */
+@layer utilities {
+  /* Upgrade every .shadow-card into a glassy 3D tile */
+  .shadow-card {
+    position: relative;
+    backdrop-filter: blur(18px) saturate(140%);
+    background-image:
+      linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0) 60%),
+      linear-gradient(180deg, rgb(255 255 255 / 0) 60%, rgb(0 0 0 / 0.06));
+    box-shadow:
+      var(--shadow-card),
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      inset 0 -1px 0 rgb(0 0 0 / 0.12);
+    transform: translateZ(0);
+    transition:
+      transform .35s cubic-bezier(.2,.7,.2,1),
+      box-shadow .35s cubic-bezier(.2,.7,.2,1),
+      background-color .25s ease;
+    will-change: transform;
+  }
+  .shadow-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(140deg,
+      rgb(255 255 255 / 0.35),
+      rgb(255 255 255 / 0.04) 40%,
+      rgb(255 255 255 / 0) 60%,
+      rgb(255 255 255 / 0.20));
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+            mask-composite: exclude;
+    pointer-events: none;
+    opacity: .9;
+  }
+  .shadow-card:hover {
+    transform: translateY(-3px) scale(1.006);
+    box-shadow:
+      0 26px 60px -22px rgb(0 0 0 / 0.55),
+      inset 0 1px 0 rgb(255 255 255 / 0.22),
+      inset 0 -1px 0 rgb(0 0 0 / 0.14);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+    backdrop-filter: blur(14px) saturate(140%);
+    transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s ease;
+  }
+  .shadow-glow:hover {
+    transform: translateY(-2px) scale(1.005);
+  }
+
+  button:active, [role="button"]:active { transform: translateY(1px) scale(.985); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shadow-card, .shadow-glow, button, [role="button"], a {
+    transition: none !important;
+    transform: none !important;
+  }
 }
