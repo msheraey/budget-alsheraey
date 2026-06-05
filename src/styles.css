@@ -59,26 +59,28 @@
   --radius: 1.1rem;
 
   --background: #14101F;                /* deep ink-aubergine */
-  --foreground: #F4EEE6;                /* warm off-white */
+  --foreground: #F6F1EA;                /* warm off-white */
 
   --surface: #1F1830;
   --surface-2: #271F3D;
 
-  --card: #1C1530;                      /* elevated card */
-  --card-foreground: #F4EEE6;
+  --card: rgb(36 28 60 / 0.62);         /* translucent glass */
+  --card-foreground: #F6F1EA;
+  --card-solid: #1C1530;
 
   --popover: #1C1530;
-  --popover-foreground: #F4EEE6;
+  --popover-foreground: #F6F1EA;
 
   --primary: #FF7A6B;                   /* coral */
   --primary-foreground: #1A0F1B;
   --primary-glow: #FF9F8A;
 
-  --secondary: #271F3D;
-  --secondary-foreground: #F4EEE6;
+  --secondary: #2D2348;
+  --secondary-foreground: #F6F1EA;
 
   --muted: #221A36;
-  --muted-foreground: #B4A7C8;
+  --muted-foreground: #CFC3E2;          /* bumped contrast */
+
 
   --accent: #9F8CFF;                    /* electric lavender */
   --accent-foreground: #14101F;
