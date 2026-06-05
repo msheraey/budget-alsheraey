@@ -133,8 +133,9 @@
   --surface: #FFFFFF;
   --surface-2: #F4EEE4;
 
-  --card: #FFFFFF;
+  --card: rgb(255 255 255 / 0.62);      /* translucent glass */
   --card-foreground: #1A1426;
+  --card-solid: #FFFFFF;
 
   --popover: #FFFFFF;
   --popover-foreground: #1A1426;
@@ -147,7 +148,8 @@
   --secondary-foreground: #5A2E22;
 
   --muted: #F1ECE3;
-  --muted-foreground: #6B5E76;
+  --muted-foreground: #4F4458;          /* bumped contrast */
+
 
   --accent: #7C5CFF;                    /* electric violet */
   --accent-foreground: #FFFFFF;
