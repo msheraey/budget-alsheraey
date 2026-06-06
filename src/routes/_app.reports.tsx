@@ -19,7 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { categoryById, formatAED, MONTHS, GROUP_LABELS } from "@/lib/categories";
+import { CATEGORIES, categoryById, formatAED, MONTHS, GROUP_LABELS } from "@/lib/categories";
 import { useTransactions } from "@/lib/transactions-store";
 import {
   subscriptionsStore, debtsStore,
