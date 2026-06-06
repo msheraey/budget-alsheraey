@@ -70,12 +70,35 @@ function ReportsPage() {
 }
 
 /* ---------------- Charts ---------------- */
+// Brand palette stops (pink → purple → blue) reused across every chart so the
+// same category/group always renders in the same colour.
+const BRAND_STOPS = ["#FF5E5B", "#FF7A6B", "#F472B6", "#C46BFF", "#9F8CFF", "#7C5CFF", "#6E7BFF", "#5C7BFF", "#60A5FA"];
+const INCOME_HUE = "#34D399"; // green for income lines/bars
+const EXPENSE_HUE = "#FF5E5B"; // brand pink for expense lines/bars
+const SAVED_HUE = "#9F8CFF";  // brand purple for net saved
 
-const CHART_COLORS = [
-  "#FF7A6B", "#9F8CFF", "#FFC34D", "#3FE3B0",
-  "#FF6369", "#6E7BFF", "#F472B6", "#34D399",
-  "#60A5FA", "#FBBF24", "#C46BFF", "#22D3EE",
-];
+const GROUP_COLOR: Record<string, string> = {
+  income: INCOME_HUE,
+  fixed: "#FF5E5B",
+  credit_cards: "#F472B6",
+  transport: "#C46BFF",
+  food: "#9F8CFF",
+  family: "#7C5CFF",
+  health: "#6E7BFF",
+  lifestyle: "#60A5FA",
+  annual: "#FFB020",
+  other: "#94A3B8",
+  savings: "#34D399",
+};
+
+// Stable colour per category id (hash → BRAND_STOPS) so charts agree.
+function colorForCat(id: string) {
+  const c = categoryById(id);
+  if (c && GROUP_COLOR[c.group]) return GROUP_COLOR[c.group];
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return BRAND_STOPS[h % BRAND_STOPS.length];
+}
 
 const tooltipStyle: React.CSSProperties = {
   background: "var(--popover)",
@@ -83,152 +106,658 @@ const tooltipStyle: React.CSSProperties = {
   borderRadius: 12,
   color: "var(--popover-foreground)",
   fontSize: 12,
+  padding: "8px 10px",
 };
 
-function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+type Range = "thisMonth" | "lastMonth" | "last3" | "thisYear";
+const RANGES: { id: Range; label: string }[] = [
+  { id: "thisMonth", label: "This Month" },
+  { id: "lastMonth", label: "Last Month" },
+  { id: "last3", label: "Last 3 Months" },
+  { id: "thisYear", label: "This Year" },
+];
+
+function rangeBounds(r: Range) {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  if (r === "thisMonth") {
+    return { start: new Date(Date.UTC(y, m, 1)), end: new Date(Date.UTC(y, m + 1, 1)) };
+  }
+  if (r === "lastMonth") {
+    return { start: new Date(Date.UTC(y, m - 1, 1)), end: new Date(Date.UTC(y, m, 1)) };
+  }
+  if (r === "last3") {
+    return { start: new Date(Date.UTC(y, m - 2, 1)), end: new Date(Date.UTC(y, m + 1, 1)) };
+  }
+  return { start: new Date(Date.UTC(y, 0, 1)), end: new Date(Date.UTC(y + 1, 0, 1)) };
+}
+const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
+
+function ChartCard({
+  title, hint, hasData, emptyHint, children,
+}: {
+  title: string;
+  hint: string;
+  hasData: boolean;
+  emptyHint: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  if (!hasData) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full rounded-2xl border border-dashed border-border bg-card/60 p-4 text-left shadow-card transition hover:bg-card"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-display text-sm font-semibold">{title}</h3>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">No data</span>
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">{emptyHint}</p>
+      </button>
+    );
+  }
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
-      <div className="mb-3">
-        <h3 className="font-display text-sm font-semibold">{title}</h3>
-        {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
-      </div>
-      {children}
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-card sm:p-5">
+      <h3 className="font-display text-sm font-semibold">{title}</h3>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>
+      <div className="mt-3">{children}</div>
     </section>
+  );
+}
+
+function SectionHeader({ n, title }: { n: number; title: string }) {
+  return (
+    <div className="flex items-center gap-2 pt-2">
+      <span className="font-display text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        Section {n}
+      </span>
+      <span className="h-px flex-1 bg-border" />
+      <span className="font-display text-xs font-semibold">{title}</span>
+    </div>
+  );
+}
+
+function Swatches({ items }: { items: { name: string; color: string }[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
+      {items.map((it) => (
+        <span key={it.name} className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <span className="h-2 w-2 rounded-sm" style={{ background: it.color }} />
+          {it.name}
+        </span>
+      ))}
+    </div>
   );
 }
 
 function ChartsTab() {
   const { data: all } = useTransactions();
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth();
-  const { startStr, endStr } = monthRange(y, m);
-  const cur = all.filter((t) => t.occurred_on >= startStr && t.occurred_on < endStr);
+  const { data: budgets } = budgetsStore.useData();
+  const { data: debts } = debtsStore.useData();
+  const { data: goals } = goalsStore.useData();
+  const [range, setRange] = useState<Range>("thisMonth");
 
+  const { start, end } = rangeBounds(range);
+  const sStr = toDateStr(start);
+  const eStr = toDateStr(end);
+  const inRange = useMemo(
+    () => all.filter((t) => t.occurred_on >= sStr && t.occurred_on < eStr),
+    [all, sStr, eStr],
+  );
+
+  // ----- shared aggregates -----
+  const income = inRange.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+  const expense = inRange.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+
+  // Income vs Expenses
+  const ieData = [{ name: "Income", value: income }, { name: "Expenses", value: expense }];
+
+  // Net cash flow per month over range
+  const months = useMemo(() => {
+    const arr: { y: number; m: number }[] = [];
+    const s = new Date(start);
+    while (s < end) {
+      arr.push({ y: s.getUTCFullYear(), m: s.getUTCMonth() });
+      s.setUTCMonth(s.getUTCMonth() + 1);
+    }
+    return arr;
+  }, [sStr, eStr]);
+
+  const cashFlow = useMemo(() => {
+    return months.map(({ y, m }) => {
+      const { startStr, endStr } = monthRange(y, m);
+      const mt = all.filter((t) => t.occurred_on >= startStr && t.occurred_on < endStr);
+      const i = mt.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+      const e = mt.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+      return { name: `${MONTHS[m].slice(0, 3)} ${String(y).slice(2)}`, net: i - e, income: i, expense: e };
+    });
+  }, [all, months]);
+
+  // Spending by group (donut)
   const byGroup = useMemo(() => {
     const map = new Map<string, number>();
-    for (const t of cur) {
+    for (const t of inRange) {
       if (t.type !== "expense") continue;
       const g = categoryById(t.category)?.group ?? "other";
       if (g === "income") continue;
       map.set(g, (map.get(g) ?? 0) + Number(t.amount));
     }
     return [...map.entries()]
-      .map(([k, v]) => ({ name: GROUP_LABELS[k as keyof typeof GROUP_LABELS] ?? k, value: v }))
+      .map(([k, v]) => ({
+        key: k,
+        name: GROUP_LABELS[k as keyof typeof GROUP_LABELS] ?? k,
+        value: v,
+        color: GROUP_COLOR[k] ?? "#94A3B8",
+      }))
       .sort((a, b) => b.value - a.value);
-  }, [cur]);
+  }, [inRange]);
 
-  const byCat = useMemo(() => {
+  // Budget vs Actual by category
+  const budgetVsActual = useMemo(() => {
+    const fn = budgetForFn(budgets);
+    const spentByCat = new Map<string, number>();
+    for (const t of inRange) {
+      if (t.type !== "expense") continue;
+      const id = categoryById(t.category) ? t.category : "miscellaneous";
+      spentByCat.set(id, (spentByCat.get(id) ?? 0) + Number(t.amount));
+    }
+    const monthsCount = months.length || 1;
+    const rows: { id: string; name: string; actual: number; budget: number; color: string }[] = [];
+    for (const c of CATEGORIES) {
+      if (c.group === "income") continue;
+      const actual = spentByCat.get(c.id) ?? 0;
+      const budget = fn(c.id) * monthsCount;
+      if (actual === 0 && budget === 0) continue;
+      rows.push({ id: c.id, name: c.name, actual, budget, color: colorForCat(c.id) });
+    }
+    return rows.sort((a, b) => Math.max(b.actual, b.budget) - Math.max(a.actual, a.budget)).slice(0, 12);
+  }, [inRange, budgets, months.length]);
+
+  // Spending by category (donut, all)
+  const byCatAll = useMemo(() => {
     const map = new Map<string, number>();
-    for (const t of cur) {
+    for (const t of inRange) {
       if (t.type !== "expense") continue;
       const id = categoryById(t.category) ? t.category : "miscellaneous";
       map.set(id, (map.get(id) ?? 0) + Number(t.amount));
     }
-    const arr = [...map.entries()].map(([id, v]) => ({
-      name: categoryById(id)?.name ?? id, value: v,
-    })).sort((a, b) => b.value - a.value);
-    const top = arr.slice(0, 7);
-    const restSum = arr.slice(7).reduce((s, r) => s + r.value, 0);
-    if (restSum > 0) top.push({ name: "Other", value: restSum });
-    return top;
-  }, [cur]);
+    return [...map.entries()]
+      .map(([id, v]) => ({ id, name: categoryById(id)?.name ?? id, value: v, color: colorForCat(id) }))
+      .sort((a, b) => b.value - a.value);
+  }, [inRange]);
 
-  const byMember = useMemo(() => {
-    const m: Record<string, { name: string; income: number; expense: number }> = {};
-    for (const t of cur) {
-      const k = t.added_by ?? "Unassigned";
-      const row = m[k] ?? (m[k] = { name: k, income: 0, expense: 0 });
-      if (t.type === "income") row.income += Number(t.amount);
-      else row.expense += Number(t.amount);
-    }
-    return Object.values(m);
-  }, [cur]);
+  const top10Cats = byCatAll.slice(0, 10);
 
-  const trend = useMemo(() => {
-    const rows: { name: string; income: number; expense: number; saved: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const ts = new Date(Date.UTC(y, m - i, 1));
-      const { startStr: s, endStr: e } = monthRange(ts.getUTCFullYear(), ts.getUTCMonth());
-      const mt = all.filter((t) => t.occurred_on >= s && t.occurred_on < e);
-      const income = mt.filter((t) => t.type === "income").reduce((sum, t) => sum + Number(t.amount), 0);
-      const expense = mt.filter((t) => t.type === "expense").reduce((sum, t) => sum + Number(t.amount), 0);
-      rows.push({
-        name: MONTHS[ts.getUTCMonth()].slice(0, 3),
-        income, expense, saved: income - expense,
-      });
+  // Top 10 transactions
+  const top10Txns = useMemo(() => {
+    return [...inRange]
+      .filter((t) => t.type === "expense")
+      .sort((a, b) => Number(b.amount) - Number(a.amount))
+      .slice(0, 10)
+      .map((t) => ({
+        name: `${categoryById(t.category)?.name ?? "—"}${t.note ? ` · ${t.note.slice(0, 18)}` : ""}`,
+        value: Number(t.amount),
+        color: colorForCat(t.category),
+      }));
+  }, [inRange]);
+
+  // Monthly spending trend — last 12 months regardless of range
+  const monthlyTrend = useMemo(() => {
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth();
+    const rows: { name: string; spent: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.UTC(y, m - i, 1));
+      const { startStr, endStr } = monthRange(d.getUTCFullYear(), d.getUTCMonth());
+      const spent = all
+        .filter((t) => t.type === "expense" && t.occurred_on >= startStr && t.occurred_on < endStr)
+        .reduce((s, t) => s + Number(t.amount), 0);
+      rows.push({ name: `${MONTHS[d.getUTCMonth()].slice(0, 3)}`, spent });
     }
     return rows;
-  }, [all, y, m]);
+  }, [all]);
 
-  if (cur.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center">
-        <p className="text-sm text-muted-foreground">Add some transactions to see your charts.</p>
-      </div>
-    );
-  }
+  // Creep categories trend (last 6 months)
+  const creepIds = ["food-groceries", "food-delivery", "eat-out", "entertainment"] as const;
+  const creepTrend = useMemo(() => {
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth();
+    const rows: Record<string, number | string>[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(Date.UTC(y, m - i, 1));
+      const { startStr, endStr } = monthRange(d.getUTCFullYear(), d.getUTCMonth());
+      const mt = all.filter((t) => t.type === "expense" && t.occurred_on >= startStr && t.occurred_on < endStr);
+      const row: Record<string, number | string> = { name: MONTHS[d.getUTCMonth()].slice(0, 3) };
+      for (const id of creepIds) {
+        row[id] = mt.filter((t) => t.category === id).reduce((s, t) => s + Number(t.amount), 0);
+      }
+      rows.push(row);
+    }
+    return rows;
+  }, [all]);
+  const creepHasData = creepTrend.some((r) => creepIds.some((id) => Number(r[id]) > 0));
 
-  const totalCatSum = byCat.reduce((s, r) => s + r.value, 0);
+  // Income trend (last 12 months)
+  const incomeTrend = useMemo(() => {
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth();
+    const rows: { name: string; income: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.UTC(y, m - i, 1));
+      const { startStr, endStr } = monthRange(d.getUTCFullYear(), d.getUTCMonth());
+      const inc = all
+        .filter((t) => t.type === "income" && t.occurred_on >= startStr && t.occurred_on < endStr)
+        .reduce((s, t) => s + Number(t.amount), 0);
+      rows.push({ name: MONTHS[d.getUTCMonth()].slice(0, 3), income: inc });
+    }
+    return rows;
+  }, [all]);
+
+  // Savings rate per month (last 6 months)
+  const savingsRate = useMemo(() => {
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth();
+    const rows: { name: string; rate: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(Date.UTC(y, m - i, 1));
+      const { startStr, endStr } = monthRange(d.getUTCFullYear(), d.getUTCMonth());
+      const mt = all.filter((t) => t.occurred_on >= startStr && t.occurred_on < endStr);
+      const inc = mt.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+      const exp = mt.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+      const rate = inc > 0 ? Math.max(-100, Math.min(100, ((inc - exp) / inc) * 100)) : 0;
+      rows.push({ name: MONTHS[d.getUTCMonth()].slice(0, 3), rate: Math.round(rate) });
+    }
+    return rows;
+  }, [all]);
+
+  // Annual bills heatmap (this year)
+  const annualHeatmap = useMemo(() => {
+    const y = new Date().getUTCFullYear();
+    const grid: { month: string; total: number }[] = [];
+    for (let mi = 0; mi < 12; mi++) {
+      const { startStr, endStr } = monthRange(y, mi);
+      const total = all
+        .filter((t) => t.type === "expense" && t.occurred_on >= startStr && t.occurred_on < endStr)
+        .filter((t) => categoryById(t.category)?.group === "annual")
+        .reduce((s, t) => s + Number(t.amount), 0);
+      grid.push({ month: MONTHS[mi].slice(0, 3), total });
+    }
+    return grid;
+  }, [all]);
+  const annualMax = Math.max(1, ...annualHeatmap.map((r) => r.total));
+
+  // Debt section
+  const ccDebts = debts.filter((d) => d.debt_type === "credit_card" || d.name.toLowerCase().includes("card"));
+  const cardsBalance = ccDebts
+    .map((d) => ({ name: d.name, value: Number(d.balance), color: colorForCat(`cc-${d.name}`) }))
+    .sort((a, b) => b.value - a.value);
+  const totalDebtNow = debts.reduce((s, d) => s + Number(d.balance), 0);
+
+  // Card payments (from transactions) per card category (in range)
+  const ccPayments = useMemo(() => {
+    const rows: { name: string; payments: number; color: string }[] = [];
+    for (const c of CATEGORIES) {
+      if (c.group !== "credit_cards") continue;
+      const paid = inRange
+        .filter((t) => t.type === "expense" && t.category === c.id)
+        .reduce((s, t) => s + Number(t.amount), 0);
+      if (paid > 0) rows.push({ name: c.name, payments: paid, color: colorForCat(c.id) });
+    }
+    return rows.sort((a, b) => b.payments - a.payments);
+  }, [inRange]);
+
+  // Goal progress
+  const goalRows = goals.map((g) => ({
+    name: g.name,
+    current: Number(g.current_amount),
+    target: Number(g.target_amount),
+    pct: g.target_amount > 0 ? Math.min(100, (Number(g.current_amount) / Number(g.target_amount)) * 100) : 0,
+  }));
 
   return (
     <div className="space-y-4">
-      <ChartCard title="Where your money went" subtitle={`${MONTHS[m]} ${y} · by section`}>
-        <ResponsiveContainer width="100%" height={260}>
-          <PieChart>
-            <Pie data={byGroup} dataKey="value" nameKey="name"
-                 cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2}>
-              {byGroup.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-            </Pie>
-            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-          </PieChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      {/* Range filter */}
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        {RANGES.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => setRange(r.id)}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-medium transition ${
+              range === r.id
+                ? "bg-gradient-primary text-primary-foreground shadow-glow"
+                : "border border-border bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
 
-      <ChartCard title="Top spending categories" subtitle="Largest 7 + everything else">
-        <ResponsiveContainer width="100%" height={260}>
-          <PieChart>
-            <Pie data={byCat} dataKey="value" nameKey="name"
-                 cx="50%" cy="50%" outerRadius={95}
-                 label={(d: { value: number }) => `${((d.value / totalCatSum) * 100).toFixed(0)}%`}
-                 labelLine={false}>
-              {byCat.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-            </Pie>
-            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-          </PieChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      {/* SECTION 1 — MONEY HEALTH */}
+      <SectionHeader n={1} title="Money Health" />
 
-      <ChartCard title="By family member" subtitle="Income vs expenses this month">
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={byMember}>
+      <ChartCard
+        title="Income vs Expenses"
+        hint="Are you living within your means — money in vs money out at a glance."
+        hasData={income > 0 || expense > 0}
+        emptyHint="No data yet — log income and expenses for this period."
+      >
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={ieData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
-            <YAxis stroke="var(--muted-foreground)" fontSize={11} />
-            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(v)}`} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="income" fill="#3FE3B0" radius={[6, 6, 0, 0]} />
-            <Bar dataKey="expense" fill="#FF6369" radius={[6, 6, 0, 0]} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={11} width={48} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
+            <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+              <Cell fill={INCOME_HUE} />
+              <Cell fill={EXPENSE_HUE} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <Swatches items={[{ name: "Income", color: INCOME_HUE }, { name: "Expenses", color: EXPENSE_HUE }]} />
+      </ChartCard>
+
+      <ChartCard
+        title="Net Cash Flow Over Time"
+        hint="Whether you finish each month up or down, and which way it's trending."
+        hasData={cashFlow.some((r) => r.income > 0 || r.expense > 0)}
+        emptyHint="No data yet — log a full month of transactions."
+      >
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={cashFlow} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={11} width={48} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(Number(v))}`} />
+            <Line type="monotone" dataKey="net" stroke={SAVED_HUE} strokeWidth={2.5} dot={{ r: 3 }} />
+          </LineChart>
+        </ResponsiveContainer>
+        <Swatches items={[{ name: "Net cash flow", color: SAVED_HUE }]} />
+      </ChartCard>
+
+      <ChartCard
+        title="Spending by Group"
+        hint="Which part of life is eating the most money."
+        hasData={byGroup.length > 0}
+        emptyHint="No expenses logged for this period."
+      >
+        <ResponsiveContainer width="100%" height={240}>
+          <PieChart>
+            <Pie data={byGroup} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                 innerRadius={55} outerRadius={90} paddingAngle={2}>
+              {byGroup.map((g) => <Cell key={g.key} fill={g.color} />)}
+            </Pie>
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
+          </PieChart>
+        </ResponsiveContainer>
+        <Swatches items={byGroup.map((g) => ({ name: g.name, color: g.color }))} />
+      </ChartCard>
+
+      <ChartCard
+        title="Budget vs Actual by Category"
+        hint="Where you're over or under your plan, category by category."
+        hasData={budgetVsActual.length > 0}
+        emptyHint="Set budgets and log expenses to compare them here."
+      >
+        <ResponsiveContainer width="100%" height={Math.max(220, budgetVsActual.length * 32)}>
+          <BarChart data={budgetVsActual} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} width={92} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(Number(v))}`} />
+            <Bar dataKey="budget" fill="#94A3B8" radius={[0, 6, 6, 0]} />
+            <Bar dataKey="actual" fill={EXPENSE_HUE} radius={[0, 6, 6, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+        <Swatches items={[{ name: "Budget", color: "#94A3B8" }, { name: "Actual", color: EXPENSE_HUE }]} />
+      </ChartCard>
+
+      {/* SECTION 2 — DEBT */}
+      <SectionHeader n={2} title="Debt" />
+
+      <ChartCard
+        title="Total Debt Balance Over Time"
+        hint="The number that must go down — your whole debt trending over time."
+        hasData={false}
+        emptyHint="Needs a monthly snapshot of each debt balance. Log a 'balance' value per debt at month-end (field to add: debt_balance_snapshots: { debt_id, month, balance })."
+      >{null}</ChartCard>
+
+      <ChartCard
+        title="Balance per Credit Card"
+        hint="Which card is heaviest and where to attack first."
+        hasData={cardsBalance.length > 0 && cardsBalance.some((c) => c.value > 0)}
+        emptyHint="Add your credit cards under Debts with their current balance."
+      >
+        <ResponsiveContainer width="100%" height={Math.max(180, cardsBalance.length * 36)}>
+          <BarChart data={cardsBalance} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} width={92} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(Number(v))}`} />
+            <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+              {cardsBalance.map((c, i) => <Cell key={i} fill={c.color} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <p className="mt-2 text-[11px] tabular-nums text-muted-foreground">
+          Total debt now: AED {formatAED(totalDebtNow)}
+        </p>
+      </ChartCard>
+
+      <ChartCard
+        title="Card Payments vs Interest Charged"
+        hint="Whether payments are reducing balances or just covering interest."
+        hasData={false}
+        emptyHint="Needs interest charges. Log each card's monthly interest as a transaction under that card category with note 'interest', or add a field interest_charged on the debt for the month."
+      >{null}</ChartCard>
+
+      {/* SECTION 3 — WHERE IT GOES */}
+      <SectionHeader n={3} title="Where It Goes" />
+
+      <ChartCard
+        title="Spending by Category"
+        hint="The full breakdown, category by category."
+        hasData={byCatAll.length > 0}
+        emptyHint="No expenses logged for this period."
+      >
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={byCatAll} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                 innerRadius={50} outerRadius={92} paddingAngle={1}>
+              {byCatAll.map((c) => <Cell key={c.id} fill={c.color} />)}
+            </Pie>
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
+          </PieChart>
+        </ResponsiveContainer>
+        <Swatches items={byCatAll.slice(0, 10).map((c) => ({ name: c.name, color: c.color }))} />
+      </ChartCard>
+
+      <ChartCard
+        title="Top 10 Categories"
+        hint="Your biggest spending lines, largest first."
+        hasData={top10Cats.length > 0}
+        emptyHint="No expenses logged for this period."
+      >
+        <ResponsiveContainer width="100%" height={Math.max(220, top10Cats.length * 30)}>
+          <BarChart data={top10Cats} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} width={92} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(Number(v))}`} />
+            <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+              {top10Cats.map((c, i) => <Cell key={i} fill={c.color} />)}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="6-month cash flow" subtitle="Income, expenses & savings">
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={trend}>
+      <ChartCard
+        title="Top 10 Transactions"
+        hint="The single biggest purchases that hit this period."
+        hasData={top10Txns.length > 0}
+        emptyHint="No expense transactions in this period."
+      >
+        <ResponsiveContainer width="100%" height={Math.max(220, top10Txns.length * 30)}>
+          <BarChart data={top10Txns} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
-            <YAxis stroke="var(--muted-foreground)" fontSize={11} />
-            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(v)}`} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Line type="monotone" dataKey="income" stroke="#3FE3B0" strokeWidth={2} dot={{ r: 3 }} />
-            <Line type="monotone" dataKey="expense" stroke="#FF6369" strokeWidth={2} dot={{ r: 3 }} />
-            <Line type="monotone" dataKey="saved" stroke="#FF7A6B" strokeWidth={2} dot={{ r: 3 }} />
-          </LineChart>
+            <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} width={108} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(Number(v))}`} />
+            <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+              {top10Txns.map((c, i) => <Cell key={i} fill={c.color} />)}
+            </Bar>
+          </BarChart>
         </ResponsiveContainer>
       </ChartCard>
+
+      {/* SECTION 4 — TRENDS */}
+      <SectionHeader n={4} title="Trends" />
+
+      <ChartCard
+        title="Monthly Spending Trend"
+        hint="Is your total spending creeping up or coming down."
+        hasData={monthlyTrend.some((r) => r.spent > 0)}
+        emptyHint="Needs at least a couple of months of expense history."
+      >
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={monthlyTrend} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={10} width={48} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(Number(v))}`} />
+            <Bar dataKey="spent" fill={EXPENSE_HUE} radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+        <Swatches items={[{ name: "Total spent", color: EXPENSE_HUE }]} />
+      </ChartCard>
+
+      <ChartCard
+        title="Selected Category Trends"
+        hint="Watch the easy-to-creep categories month over month."
+        hasData={creepHasData}
+        emptyHint="Log Grocery, Delivery, Eat out or Entertainment to track creep."
+      >
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={creepTrend} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={10} width={48} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(Number(v))}`} />
+            {creepIds.map((id) => (
+              <Line key={id} type="monotone" dataKey={id} stroke={colorForCat(id)} strokeWidth={2} dot={{ r: 2.5 }} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+        <Swatches items={creepIds.map((id) => ({ name: categoryById(id)?.name ?? id, color: colorForCat(id) }))} />
+      </ChartCard>
+
+      <ChartCard
+        title="Income Trend"
+        hint="Track your salary recovery as the job search pays off."
+        hasData={incomeTrend.some((r) => r.income > 0)}
+        emptyHint="Log income transactions to start tracking your recovery."
+      >
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={incomeTrend} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={10} width={48} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(Number(v))}`} />
+            <Line type="monotone" dataKey="income" stroke={INCOME_HUE} strokeWidth={2.5} dot={{ r: 3 }} />
+          </LineChart>
+        </ResponsiveContainer>
+        <Swatches items={[{ name: "Income", color: INCOME_HUE }]} />
+      </ChartCard>
+
+      <ChartCard
+        title="Savings Rate % by Month"
+        hint="What share of income you actually kept."
+        hasData={savingsRate.some((r) => r.rate !== 0)}
+        emptyHint="Needs both income and expenses logged for a month."
+      >
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={savingsRate} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={10} width={40} unit="%" />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
+            <Line type="monotone" dataKey="rate" stroke={SAVED_HUE} strokeWidth={2.5} dot={{ r: 3 }} />
+          </LineChart>
+        </ResponsiveContainer>
+        <Swatches items={[{ name: "Savings rate", color: SAVED_HUE }]} />
+      </ChartCard>
+
+      {/* SECTION 5 — PLANNING */}
+      <SectionHeader n={5} title="Planning" />
+
+      <ChartCard
+        title="Annual Bills Calendar"
+        hint="Which months carry the big once-a-year hits so they don't ambush you."
+        hasData={annualHeatmap.some((r) => r.total > 0)}
+        emptyHint="Log annual bills (Visa renewal, Car renewal, License, Flight tickets, Eid) to see the calendar."
+      >
+        <div className="grid grid-cols-6 gap-1.5">
+          {annualHeatmap.map((cell) => {
+            const intensity = cell.total / annualMax;
+            const bg = cell.total === 0
+              ? "var(--secondary)"
+              : `color-mix(in oklab, ${SAVED_HUE} ${Math.round(20 + intensity * 70)}%, transparent)`;
+            return (
+              <div key={cell.month}
+                   className="flex aspect-square flex-col items-center justify-center rounded-lg border border-border/50 text-[10px]"
+                   style={{ background: bg }}
+                   title={`${cell.month}: AED ${formatAED(cell.total)}`}>
+                <span className="font-semibold">{cell.month}</span>
+                {cell.total > 0 && (
+                  <span className="mt-0.5 tabular-nums text-[9px] opacity-80">{formatAED(cell.total)}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <Swatches items={[{ name: "Annual bill hit", color: SAVED_HUE }]} />
+      </ChartCard>
+
+      <ChartCard
+        title="Goal Progress"
+        hint="How close you are to your savings targets."
+        hasData={goalRows.length > 0}
+        emptyHint="Add savings goals (e.g. Emergency buffer, Monthly savings) to track them here."
+      >
+        <ul className="space-y-3">
+          {goalRows.map((g) => (
+            <li key={g.name}>
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium">{g.name}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  AED {formatAED(g.current)} / {formatAED(g.target)}
+                </span>
+              </div>
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-secondary/50">
+                <div className="h-full rounded-full bg-gradient-primary"
+                     style={{ width: `${g.pct}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </ChartCard>
+
+      {/* Data gaps note */}
+      <div className="rounded-2xl border border-dashed border-border bg-card/40 p-4 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="font-display text-xs font-semibold text-foreground">To unlock the locked charts, start logging:</p>
+        <ul className="mt-1.5 list-disc pl-4">
+          <li><span className="font-medium text-foreground">Total Debt Over Time</span> — a monthly snapshot of each debt balance (debt_id, month, balance).</li>
+          <li><span className="font-medium text-foreground">Card Payments vs Interest</span> — the interest charged on each card per month (either as a transaction noted "interest" on that card category, or a monthly interest_charged field on the debt).</li>
+        </ul>
+      </div>
     </div>
   );
 }
