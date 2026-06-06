@@ -2,9 +2,13 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Repeat, CreditCard, Plus, Trash2, TrendingDown, TrendingUp,
-  CalendarClock, Activity, Trophy,
+  CalendarClock, Activity, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line,
+} from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,10 +19,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { categoryById, formatAED, MONTHS } from "@/lib/categories";
+import { categoryById, formatAED, MONTHS, GROUP_LABELS } from "@/lib/categories";
 import { useTransactions } from "@/lib/transactions-store";
 import {
-  subscriptionsStore, debtsStore, achievementsStore,
+  subscriptionsStore, debtsStore,
   budgetsStore, goalsStore,
   type Subscription, type Debt,
 } from "@/lib/finance-stores";
@@ -26,6 +30,9 @@ import {
   budgetForFn, totalBudgetFor, monthRange, totalsForMonth,
   healthScore, forecast, topSavingsGoalBalance,
 } from "@/lib/finance-math";
+import {
+  evaluateAchievements, BADGE_GROUPS, BADGE_TIER_STYLE,
+} from "@/lib/achievements";
 
 export const Route = createFileRoute("/_app/reports")({
   head: () => ({ meta: [{ title: "Reports — Ledger" }] }),
@@ -41,21 +48,187 @@ function ReportsPage() {
       </header>
 
       <Tabs defaultValue="review" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 h-auto p-1">
-          <TabsTrigger value="review" className="text-[11px] px-1">Review</TabsTrigger>
-          <TabsTrigger value="forecast" className="text-[11px] px-1">Forecast</TabsTrigger>
-          <TabsTrigger value="health" className="text-[11px] px-1">Health</TabsTrigger>
-          <TabsTrigger value="subs" className="text-[11px] px-1">Subs</TabsTrigger>
-          <TabsTrigger value="debts" className="text-[11px] px-1">Debts</TabsTrigger>
-          <TabsTrigger value="badges" className="text-[11px] px-1">Badges</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-7 h-auto p-1">
+          <TabsTrigger value="review" className="text-[10px] px-1">Review</TabsTrigger>
+          <TabsTrigger value="charts" className="text-[10px] px-1">Charts</TabsTrigger>
+          <TabsTrigger value="forecast" className="text-[10px] px-1">Forecast</TabsTrigger>
+          <TabsTrigger value="health" className="text-[10px] px-1">Health</TabsTrigger>
+          <TabsTrigger value="subs" className="text-[10px] px-1">Subs</TabsTrigger>
+          <TabsTrigger value="debts" className="text-[10px] px-1">Debts</TabsTrigger>
+          <TabsTrigger value="badges" className="text-[10px] px-1">Badges</TabsTrigger>
         </TabsList>
         <TabsContent value="review" className="mt-4"><MonthlyReview /></TabsContent>
+        <TabsContent value="charts" className="mt-4"><ChartsTab /></TabsContent>
         <TabsContent value="forecast" className="mt-4"><ForecastTab /></TabsContent>
         <TabsContent value="health" className="mt-4"><HealthTab /></TabsContent>
         <TabsContent value="subs" className="mt-4"><SubscriptionsSection /></TabsContent>
         <TabsContent value="debts" className="mt-4"><DebtsSection /></TabsContent>
         <TabsContent value="badges" className="mt-4"><AchievementsSection /></TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/* ---------------- Charts ---------------- */
+
+const CHART_COLORS = [
+  "#FF7A6B", "#9F8CFF", "#FFC34D", "#3FE3B0",
+  "#FF6369", "#6E7BFF", "#F472B6", "#34D399",
+  "#60A5FA", "#FBBF24", "#C46BFF", "#22D3EE",
+];
+
+const tooltipStyle: React.CSSProperties = {
+  background: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  color: "var(--popover-foreground)",
+  fontSize: 12,
+};
+
+function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-3">
+        <h3 className="font-display text-sm font-semibold">{title}</h3>
+        {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ChartsTab() {
+  const { data: all } = useTransactions();
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const { startStr, endStr } = monthRange(y, m);
+  const cur = all.filter((t) => t.occurred_on >= startStr && t.occurred_on < endStr);
+
+  const byGroup = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of cur) {
+      if (t.type !== "expense") continue;
+      const g = categoryById(t.category)?.group ?? "other";
+      if (g === "income") continue;
+      map.set(g, (map.get(g) ?? 0) + Number(t.amount));
+    }
+    return [...map.entries()]
+      .map(([k, v]) => ({ name: GROUP_LABELS[k as keyof typeof GROUP_LABELS] ?? k, value: v }))
+      .sort((a, b) => b.value - a.value);
+  }, [cur]);
+
+  const byCat = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of cur) {
+      if (t.type !== "expense") continue;
+      const id = categoryById(t.category) ? t.category : "miscellaneous";
+      map.set(id, (map.get(id) ?? 0) + Number(t.amount));
+    }
+    const arr = [...map.entries()].map(([id, v]) => ({
+      name: categoryById(id)?.name ?? id, value: v,
+    })).sort((a, b) => b.value - a.value);
+    const top = arr.slice(0, 7);
+    const restSum = arr.slice(7).reduce((s, r) => s + r.value, 0);
+    if (restSum > 0) top.push({ name: "Other", value: restSum });
+    return top;
+  }, [cur]);
+
+  const byMember = useMemo(() => {
+    const m: Record<string, { name: string; income: number; expense: number }> = {};
+    for (const t of cur) {
+      const k = t.added_by ?? "Unassigned";
+      const row = m[k] ?? (m[k] = { name: k, income: 0, expense: 0 });
+      if (t.type === "income") row.income += Number(t.amount);
+      else row.expense += Number(t.amount);
+    }
+    return Object.values(m);
+  }, [cur]);
+
+  const trend = useMemo(() => {
+    const rows: { name: string; income: number; expense: number; saved: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const ts = new Date(Date.UTC(y, m - i, 1));
+      const { startStr: s, endStr: e } = monthRange(ts.getUTCFullYear(), ts.getUTCMonth());
+      const mt = all.filter((t) => t.occurred_on >= s && t.occurred_on < e);
+      const income = mt.filter((t) => t.type === "income").reduce((sum, t) => sum + Number(t.amount), 0);
+      const expense = mt.filter((t) => t.type === "expense").reduce((sum, t) => sum + Number(t.amount), 0);
+      rows.push({
+        name: MONTHS[ts.getUTCMonth()].slice(0, 3),
+        income, expense, saved: income - expense,
+      });
+    }
+    return rows;
+  }, [all, y, m]);
+
+  if (cur.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center">
+        <p className="text-sm text-muted-foreground">Add some transactions to see your charts.</p>
+      </div>
+    );
+  }
+
+  const totalCatSum = byCat.reduce((s, r) => s + r.value, 0);
+
+  return (
+    <div className="space-y-4">
+      <ChartCard title="Where your money went" subtitle={`${MONTHS[m]} ${y} · by section`}>
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={byGroup} dataKey="value" nameKey="name"
+                 cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2}>
+              {byGroup.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Top spending categories" subtitle="Largest 7 + everything else">
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={byCat} dataKey="value" nameKey="name"
+                 cx="50%" cy="50%" outerRadius={95}
+                 label={(d: { value: number }) => `${((d.value / totalCatSum) * 100).toFixed(0)}%`}
+                 labelLine={false}>
+              {byCat.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="By family member" subtitle="Income vs expenses this month">
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={byMember}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={11} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(v)}`} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="income" fill="#3FE3B0" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="expense" fill="#FF6369" radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="6-month cash flow" subtitle="Income, expenses & savings">
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={trend}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={11} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(v)}`} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line type="monotone" dataKey="income" stroke="#3FE3B0" strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="expense" stroke="#FF6369" strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="saved" stroke="#FF7A6B" strokeWidth={2} dot={{ r: 3 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
     </div>
   );
 }
@@ -567,38 +740,99 @@ function DebtDialog() {
 
 /* ---------------- Achievements ---------------- */
 
-const BADGES = [
-  { key: "first_transaction",   title: "First Steps",          desc: "Logged your first transaction" },
-  { key: "month_under_budget",  title: "Disciplined",          desc: "1 month under budget" },
-  { key: "three_months_budget", title: "Streak Master",        desc: "3 months under budget" },
-  { key: "emergency_started",   title: "Safety Net",           desc: "Emergency fund started" },
-  { key: "saved_10k",           title: "Saver",                desc: "Saved AED 10,000" },
-  { key: "goal_completed",      title: "Goal Crusher",         desc: "Completed a savings goal" },
-  { key: "no_overspend",        title: "On Target",            desc: "No overspending this month" },
-];
-
 function AchievementsSection() {
-  const { data: unlocked } = achievementsStore.useData();
-  const set = new Set(unlocked.map((a) => a.key));
+  const { data: txns } = useTransactions();
+  const { data: goals } = goalsStore.useData();
+  const { data: debts } = debtsStore.useData();
+  const { data: budgets } = budgetsStore.useData();
+
+  const progress = useMemo(
+    () => evaluateAchievements({ txns, goals, debts, budgets }),
+    [txns, goals, debts, budgets],
+  );
+
+  const unlockedCount = progress.filter((p) => p.unlocked).length;
+  const totalCount = progress.length;
+  const overallPct = (unlockedCount / totalCount) * 100;
+
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {BADGES.map((b) => {
-        const got = set.has(b.key);
+    <div className="space-y-5">
+      <div className="rounded-2xl bg-gradient-primary p-5 text-primary-foreground shadow-glow">
+        <div className="flex items-baseline justify-between">
+          <p className="text-xs uppercase tracking-widest opacity-90">Achievements</p>
+          <p className="font-display text-2xl font-bold tabular-nums">
+            {unlockedCount}<span className="text-base opacity-80">/{totalCount}</span>
+          </p>
+        </div>
+        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/20">
+          <div className="h-full rounded-full bg-white" style={{ width: `${overallPct}%` }} />
+        </div>
+        <p className="mt-2 text-xs opacity-90">
+          {overallPct.toFixed(0)}% complete · keep going!
+        </p>
+      </div>
+
+      {BADGE_GROUPS.map((group) => {
+        const items = progress.filter((p) => p.badge.group === group);
+        if (items.length === 0) return null;
+        const got = items.filter((i) => i.unlocked).length;
         return (
-          <div
-            key={b.key}
-            className={`rounded-2xl border p-4 text-center shadow-card transition ${
-              got ? "border-savings/40 bg-card" : "border-border bg-card/40 opacity-60"
-            }`}
-          >
-            <span className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${got ? "bg-gradient-savings text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>
-              <Trophy className="h-5 w-5" />
-            </span>
-            <p className="mt-2 font-display text-sm font-semibold">{b.title}</p>
-            <p className="text-[11px] text-muted-foreground">{b.desc}</p>
-          </div>
+          <section key={group}>
+            <div className="mb-2 flex items-baseline justify-between px-1">
+              <h3 className="font-display text-sm font-semibold">{group}</h3>
+              <span className="text-[11px] tabular-nums text-muted-foreground">{got} / {items.length}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {items.map((p) => <BadgeCard key={p.badge.key} p={p} />)}
+            </div>
+          </section>
         );
       })}
+    </div>
+  );
+}
+
+function BadgeCard({ p }: { p: ReturnType<typeof evaluateAchievements>[number] }) {
+  const Icon = p.badge.icon;
+  const style = BADGE_TIER_STYLE[p.badge.tier];
+  const pct = Math.round(p.progress * 100);
+  const got = p.unlocked;
+
+  const progressLabel = (() => {
+    if (got) return "Unlocked";
+    if (p.unit === "AED") return `AED ${formatAED(p.current)} / ${formatAED(p.target)}`;
+    if (p.unit === "%") return `${Math.round(p.current)}% / ${p.target}%`;
+    if (p.target === 1) return `${pct}%`;
+    return `${Math.round(p.current)} / ${p.target}${p.unit ? ` ${p.unit}` : ""}`;
+  })();
+
+  return (
+    <div
+      className={`relative rounded-2xl border p-3 text-center shadow-card transition ${
+        got
+          ? "border-primary/40 bg-card"
+          : "border-border bg-card/60"
+      }`}
+    >
+      <span
+        className={`relative mx-auto flex h-12 w-12 items-center justify-center rounded-full ring-2 ${style.ring} ${
+          got ? style.bg : "bg-secondary"
+        } ${got ? style.text : "text-muted-foreground"}`}
+        style={got ? { boxShadow: "0 8px 24px -10px rgb(0 0 0 / 0.45)" } : undefined}
+      >
+        {got ? <Icon className="h-5 w-5" /> : <Lock className="h-4 w-4" />}
+      </span>
+      <p className={`mt-2 font-display text-[13px] font-semibold leading-tight ${got ? "" : "text-foreground/80"}`}>
+        {p.badge.title}
+      </p>
+      <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{p.badge.desc}</p>
+      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-secondary/60">
+        <div className={`h-full rounded-full ${got ? "bg-gradient-primary" : "bg-primary/60"}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-[10px] tabular-nums text-muted-foreground">{progressLabel}</p>
+      <span className={`absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${style.bg} ${style.text}`}>
+        {p.badge.tier}
+      </span>
     </div>
   );
 }

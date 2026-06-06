@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  CATEGORIES, MONTHS, categoryById, formatAED,
+  CATEGORIES, MONTHS, MEMBERS, categoryById, formatAED,
 } from "@/lib/categories";
 import { useTransactions, type Txn } from "@/lib/transactions-store";
 import {
@@ -50,12 +50,19 @@ function Dashboard() {
       ? new Date(Date.UTC(START_YEAR, START_MONTH, 1))
       : new Date(Date.UTC(y, m, 1));
   });
+  const [memberFilter, setMemberFilter] = useState<"all" | (typeof MEMBERS)[number]>("all");
 
-  const { data: all } = useTransactions();
+  const { data: allUnfiltered } = useTransactions();
   const { data: budgets } = budgetsStore.useData();
   const { data: goals } = goalsStore.useData();
   const { data: debts } = debtsStore.useData();
   const { data: bills } = billsStore.useData();
+
+  // Per-member filter (#7)
+  const all = useMemo(
+    () => memberFilter === "all" ? allUnfiltered : allUnfiltered.filter((t) => t.added_by === memberFilter),
+    [allUnfiltered, memberFilter],
+  );
 
   const budgetFor = (id: string) =>
     budgets.find((b) => b.category === id)?.amount ?? categoryById(id)?.budget ?? 0;
@@ -80,10 +87,12 @@ function Dashboard() {
     const byCat = new Map<string, number>();
     let income = 0, spent = 0, savingsContrib = 0;
     for (const t of txns) {
-      byCat.set(t.category, (byCat.get(t.category) ?? 0) + Number(t.amount));
+      // #1 Auto-reassign orphaned transactions to Miscellaneous
+      const cat = categoryById(t.category);
+      const catId = cat ? t.category : "miscellaneous";
+      byCat.set(catId, (byCat.get(catId) ?? 0) + Number(t.amount));
       if (t.type === "income") income += Number(t.amount);
       else spent += Number(t.amount);
-      const cat = categoryById(t.category);
       if (cat?.group === "savings" && t.type === "expense") savingsContrib += Number(t.amount);
     }
     const totalBudget = CATEGORIES.filter((c) => c.group !== "income")
@@ -201,6 +210,27 @@ function Dashboard() {
           </SelectContent>
         </Select>
       </header>
+
+      {/* Member filter (#7) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <span className="shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground">View</span>
+        {(["all", ...MEMBERS] as const).map((opt) => {
+          const active = memberFilter === opt;
+          return (
+            <button
+              key={opt}
+              onClick={() => setMemberFilter(opt)}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                active
+                  ? "border-primary bg-gradient-primary text-primary-foreground shadow-glow"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {opt === "all" ? "Family" : opt}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Money Flow */}
       <MoneyFlowCard income={totals.income} expenses={totals.spent} saved={saved} />
