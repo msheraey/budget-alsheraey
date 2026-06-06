@@ -220,9 +220,76 @@
   }
 
   body {
-    background-image: var(--gradient-glow);
-    background-attachment: fixed;
+    background-color: var(--color-background);
   }
+}
+
+/* ---------- Aurora interactive background (Lovable-style) ---------- */
+.aurora-bg {
+  background:
+    radial-gradient(1200px 800px at var(--mx, 50%) var(--my, 40%),
+      color-mix(in oklab, var(--primary) 22%, transparent), transparent 60%),
+    var(--gradient-glow),
+    var(--color-background);
+  isolation: isolate;
+}
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.light .aurora-blob { mix-blend-mode: multiply; opacity: 0.35; }
+.aurora-blob-1 {
+  width: 46vmax; height: 46vmax;
+  left: -10vmax; top: -14vmax;
+  background: radial-gradient(circle at 30% 30%, var(--primary), transparent 60%);
+  animation: aurora-drift-a 22s ease-in-out infinite alternate;
+}
+.aurora-blob-2 {
+  width: 50vmax; height: 50vmax;
+  right: -14vmax; top: 20vmax;
+  background: radial-gradient(circle at 60% 40%, var(--accent), transparent 60%);
+  animation: aurora-drift-b 26s ease-in-out infinite alternate;
+}
+.aurora-blob-3 {
+  width: 40vmax; height: 40vmax;
+  left: 10vmax; bottom: -16vmax;
+  background: radial-gradient(circle at 50% 50%, var(--warning), transparent 60%);
+  animation: aurora-drift-c 30s ease-in-out infinite alternate;
+}
+.aurora-cursor {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(360px 360px at var(--mx, 50%) var(--my, 40%),
+    color-mix(in oklab, var(--primary-glow) 28%, transparent), transparent 70%);
+  transition: background 0.2s ease-out;
+}
+.aurora-grain {
+  position: absolute; inset: 0; opacity: 0.05; pointer-events: none;
+  background-image:
+    radial-gradient(rgb(255 255 255 / 0.6) 1px, transparent 1px),
+    radial-gradient(rgb(255 255 255 / 0.3) 1px, transparent 1px);
+  background-size: 3px 3px, 5px 5px;
+  background-position: 0 0, 1px 2px;
+  mix-blend-mode: overlay;
+}
+@keyframes aurora-drift-a {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(8vmax, 6vmax) scale(1.15); }
+}
+@keyframes aurora-drift-b {
+  0%   { transform: translate(0, 0) scale(1.05); }
+  100% { transform: translate(-10vmax, 4vmax) scale(0.95); }
+}
+@keyframes aurora-drift-c {
+  0%   { transform: translate(0, 0) scale(0.95); }
+  100% { transform: translate(6vmax, -8vmax) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob, .aurora-cursor { animation: none !important; transition: none !important; }
 }
 
 @layer utilities {

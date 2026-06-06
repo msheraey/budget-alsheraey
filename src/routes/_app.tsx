@@ -4,6 +4,7 @@ import { QuickAddFab } from "@/components/quick-add-fab";
 import { AppHeader } from "@/components/app-header";
 import { SideNav } from "@/components/side-nav";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuroraBackground } from "@/components/aurora-background";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -12,7 +13,8 @@ export const Route = createFileRoute("/_app")({
 function AppLayout() {
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="relative min-h-screen text-foreground">
+        <AuroraBackground />
         <AppHeader />
         <div className="mx-auto flex w-full max-w-6xl">
           <SideNav />
