@@ -64,7 +64,7 @@ export const CATEGORIES: Category[] = [
   { id: "nol",                 name: "Nol",                 group: "transport", budget: 0,    icon: Train,          color: "destructive" },
   { id: "taxi",                name: "Taxi",                group: "transport", budget: 0,    icon: Car,            color: "destructive" },
   { id: "vehicle-maintenance", name: "Vehicle maintenance", group: "transport", budget: 200,  icon: Wrench,         color: "destructive" },
-  { id: "car-registration",    name: "Car registration",    group: "transport", budget: 0,    icon: FileText,       color: "destructive" },
+  
 
   // Food
   { id: "food-groceries",      name: "Grocery",  group: "food", budget: 2000, icon: Utensils, color: "destructive" },
