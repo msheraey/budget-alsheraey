@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  CATEGORIES, MONTHS, categoryById, formatAED,
+  CATEGORIES, MONTHS, MEMBERS, categoryById, formatAED,
 } from "@/lib/categories";
 import { useTransactions, type Txn } from "@/lib/transactions-store";
 import {
@@ -50,12 +50,19 @@ function Dashboard() {
       ? new Date(Date.UTC(START_YEAR, START_MONTH, 1))
       : new Date(Date.UTC(y, m, 1));
   });
+  const [memberFilter, setMemberFilter] = useState<"all" | (typeof MEMBERS)[number]>("all");
 
-  const { data: all } = useTransactions();
+  const { data: allUnfiltered } = useTransactions();
   const { data: budgets } = budgetsStore.useData();
   const { data: goals } = goalsStore.useData();
   const { data: debts } = debtsStore.useData();
   const { data: bills } = billsStore.useData();
+
+  // Per-member filter (#7)
+  const all = useMemo(
+    () => memberFilter === "all" ? allUnfiltered : allUnfiltered.filter((t) => t.added_by === memberFilter),
+    [allUnfiltered, memberFilter],
+  );
 
   const budgetFor = (id: string) =>
     budgets.find((b) => b.category === id)?.amount ?? categoryById(id)?.budget ?? 0;
