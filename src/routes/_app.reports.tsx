@@ -836,5 +836,3 @@ function BadgeCard({ p }: { p: ReturnType<typeof evaluateAchievements>[number] }
     </div>
   );
 }
-  );
-}
