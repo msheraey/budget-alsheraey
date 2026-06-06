@@ -26,6 +26,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CATEGORIES,
   GROUP_LABELS,
+  GROUP_ORDER,
   MEMBERS,
   PAYMENT_METHODS,
   type CategoryGroup,
@@ -36,7 +37,6 @@ import {
   type Txn,
 } from "@/lib/transactions-store";
 
-const GROUP_ORDER: CategoryGroup[] = ["income", "fixed", "variable", "savings"];
 
 type Props =
   | { defaultMonth: Date; editing?: undefined; controlled?: undefined; open?: undefined; onOpenChange?: undefined }

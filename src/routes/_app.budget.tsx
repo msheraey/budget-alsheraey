@@ -35,7 +35,7 @@ function BudgetPage() {
   const budgetFor = (id: string) =>
     budgets.find((b) => b.category === id)?.amount ?? categoryById(id)?.budget ?? 0;
 
-  const groups: CategoryGroup[] = GROUP_ORDER.filter((g) => g !== "income").concat("income");
+  const groups: CategoryGroup[] = [...GROUP_ORDER.filter((g) => g !== "income"), "income"];
 
   const totalBudget = CATEGORIES.filter((c) => c.group !== "income").reduce((s, c) => s + budgetFor(c.id), 0);
   const totalActual = CATEGORIES.filter((c) => c.group !== "income").reduce((s, c) => s + (actuals.get(c.id) ?? 0), 0);
