@@ -87,10 +87,12 @@ function Dashboard() {
     const byCat = new Map<string, number>();
     let income = 0, spent = 0, savingsContrib = 0;
     for (const t of txns) {
-      byCat.set(t.category, (byCat.get(t.category) ?? 0) + Number(t.amount));
+      // #1 Auto-reassign orphaned transactions to Miscellaneous
+      const cat = categoryById(t.category);
+      const catId = cat ? t.category : "miscellaneous";
+      byCat.set(catId, (byCat.get(catId) ?? 0) + Number(t.amount));
       if (t.type === "income") income += Number(t.amount);
       else spent += Number(t.amount);
-      const cat = categoryById(t.category);
       if (cat?.group === "savings" && t.type === "expense") savingsContrib += Number(t.amount);
     }
     const totalBudget = CATEGORIES.filter((c) => c.group !== "income")
