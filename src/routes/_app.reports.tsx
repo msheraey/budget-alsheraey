@@ -2,9 +2,13 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Repeat, CreditCard, Plus, Trash2, TrendingDown, TrendingUp,
-  CalendarClock, Activity, Trophy,
+  CalendarClock, Activity, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line,
+} from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,10 +19,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { categoryById, formatAED, MONTHS } from "@/lib/categories";
+import { categoryById, formatAED, MONTHS, GROUP_LABELS } from "@/lib/categories";
 import { useTransactions } from "@/lib/transactions-store";
 import {
-  subscriptionsStore, debtsStore, achievementsStore,
+  subscriptionsStore, debtsStore,
   budgetsStore, goalsStore,
   type Subscription, type Debt,
 } from "@/lib/finance-stores";
@@ -26,6 +30,9 @@ import {
   budgetForFn, totalBudgetFor, monthRange, totalsForMonth,
   healthScore, forecast, topSavingsGoalBalance,
 } from "@/lib/finance-math";
+import {
+  evaluateAchievements, BADGE_GROUPS, BADGE_TIER_STYLE,
+} from "@/lib/achievements";
 
 export const Route = createFileRoute("/_app/reports")({
   head: () => ({ meta: [{ title: "Reports — Ledger" }] }),
@@ -41,21 +48,187 @@ function ReportsPage() {
       </header>
 
       <Tabs defaultValue="review" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 h-auto p-1">
-          <TabsTrigger value="review" className="text-[11px] px-1">Review</TabsTrigger>
-          <TabsTrigger value="forecast" className="text-[11px] px-1">Forecast</TabsTrigger>
-          <TabsTrigger value="health" className="text-[11px] px-1">Health</TabsTrigger>
-          <TabsTrigger value="subs" className="text-[11px] px-1">Subs</TabsTrigger>
-          <TabsTrigger value="debts" className="text-[11px] px-1">Debts</TabsTrigger>
-          <TabsTrigger value="badges" className="text-[11px] px-1">Badges</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-7 h-auto p-1">
+          <TabsTrigger value="review" className="text-[10px] px-1">Review</TabsTrigger>
+          <TabsTrigger value="charts" className="text-[10px] px-1">Charts</TabsTrigger>
+          <TabsTrigger value="forecast" className="text-[10px] px-1">Forecast</TabsTrigger>
+          <TabsTrigger value="health" className="text-[10px] px-1">Health</TabsTrigger>
+          <TabsTrigger value="subs" className="text-[10px] px-1">Subs</TabsTrigger>
+          <TabsTrigger value="debts" className="text-[10px] px-1">Debts</TabsTrigger>
+          <TabsTrigger value="badges" className="text-[10px] px-1">Badges</TabsTrigger>
         </TabsList>
         <TabsContent value="review" className="mt-4"><MonthlyReview /></TabsContent>
+        <TabsContent value="charts" className="mt-4"><ChartsTab /></TabsContent>
         <TabsContent value="forecast" className="mt-4"><ForecastTab /></TabsContent>
         <TabsContent value="health" className="mt-4"><HealthTab /></TabsContent>
         <TabsContent value="subs" className="mt-4"><SubscriptionsSection /></TabsContent>
         <TabsContent value="debts" className="mt-4"><DebtsSection /></TabsContent>
         <TabsContent value="badges" className="mt-4"><AchievementsSection /></TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/* ---------------- Charts ---------------- */
+
+const CHART_COLORS = [
+  "#FF7A6B", "#9F8CFF", "#FFC34D", "#3FE3B0",
+  "#FF6369", "#6E7BFF", "#F472B6", "#34D399",
+  "#60A5FA", "#FBBF24", "#C46BFF", "#22D3EE",
+];
+
+const tooltipStyle: React.CSSProperties = {
+  background: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  color: "var(--popover-foreground)",
+  fontSize: 12,
+};
+
+function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-3">
+        <h3 className="font-display text-sm font-semibold">{title}</h3>
+        {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ChartsTab() {
+  const { data: all } = useTransactions();
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const { startStr, endStr } = monthRange(y, m);
+  const cur = all.filter((t) => t.occurred_on >= startStr && t.occurred_on < endStr);
+
+  const byGroup = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of cur) {
+      if (t.type !== "expense") continue;
+      const g = categoryById(t.category)?.group ?? "other";
+      if (g === "income") continue;
+      map.set(g, (map.get(g) ?? 0) + Number(t.amount));
+    }
+    return [...map.entries()]
+      .map(([k, v]) => ({ name: GROUP_LABELS[k as keyof typeof GROUP_LABELS] ?? k, value: v }))
+      .sort((a, b) => b.value - a.value);
+  }, [cur]);
+
+  const byCat = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of cur) {
+      if (t.type !== "expense") continue;
+      const id = categoryById(t.category) ? t.category : "miscellaneous";
+      map.set(id, (map.get(id) ?? 0) + Number(t.amount));
+    }
+    const arr = [...map.entries()].map(([id, v]) => ({
+      name: categoryById(id)?.name ?? id, value: v,
+    })).sort((a, b) => b.value - a.value);
+    const top = arr.slice(0, 7);
+    const restSum = arr.slice(7).reduce((s, r) => s + r.value, 0);
+    if (restSum > 0) top.push({ name: "Other", value: restSum });
+    return top;
+  }, [cur]);
+
+  const byMember = useMemo(() => {
+    const m: Record<string, { name: string; income: number; expense: number }> = {};
+    for (const t of cur) {
+      const k = t.added_by ?? "Unassigned";
+      const row = m[k] ?? (m[k] = { name: k, income: 0, expense: 0 });
+      if (t.type === "income") row.income += Number(t.amount);
+      else row.expense += Number(t.amount);
+    }
+    return Object.values(m);
+  }, [cur]);
+
+  const trend = useMemo(() => {
+    const rows: { name: string; income: number; expense: number; saved: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const ts = new Date(Date.UTC(y, m - i, 1));
+      const { startStr: s, endStr: e } = monthRange(ts.getUTCFullYear(), ts.getUTCMonth());
+      const mt = all.filter((t) => t.occurred_on >= s && t.occurred_on < e);
+      const income = mt.filter((t) => t.type === "income").reduce((sum, t) => sum + Number(t.amount), 0);
+      const expense = mt.filter((t) => t.type === "expense").reduce((sum, t) => sum + Number(t.amount), 0);
+      rows.push({
+        name: MONTHS[ts.getUTCMonth()].slice(0, 3),
+        income, expense, saved: income - expense,
+      });
+    }
+    return rows;
+  }, [all, y, m]);
+
+  if (cur.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center">
+        <p className="text-sm text-muted-foreground">Add some transactions to see your charts.</p>
+      </div>
+    );
+  }
+
+  const totalCatSum = byCat.reduce((s, r) => s + r.value, 0);
+
+  return (
+    <div className="space-y-4">
+      <ChartCard title="Where your money went" subtitle={`${MONTHS[m]} ${y} · by section`}>
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={byGroup} dataKey="value" nameKey="name"
+                 cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={2}>
+              {byGroup.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Top spending categories" subtitle="Largest 7 + everything else">
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={byCat} dataKey="value" nameKey="name"
+                 cx="50%" cy="50%" outerRadius={95}
+                 label={(d: { value: number }) => `${((d.value / totalCatSum) * 100).toFixed(0)}%`}
+                 labelLine={false}>
+              {byCat.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [`AED ${formatAED(v)}`, ""]} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="By family member" subtitle="Income vs expenses this month">
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={byMember}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={11} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(v)}`} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="income" fill="#3FE3B0" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="expense" fill="#FF6369" radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="6-month cash flow" subtitle="Income, expenses & savings">
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={trend}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={11} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => `AED ${formatAED(v)}`} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line type="monotone" dataKey="income" stroke="#3FE3B0" strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="expense" stroke="#FF6369" strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="saved" stroke="#FF7A6B" strokeWidth={2} dot={{ r: 3 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
     </div>
   );
 }
