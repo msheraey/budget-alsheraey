@@ -211,6 +211,27 @@ function Dashboard() {
         </Select>
       </header>
 
+      {/* Member filter (#7) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <span className="shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground">View</span>
+        {(["all", ...MEMBERS] as const).map((opt) => {
+          const active = memberFilter === opt;
+          return (
+            <button
+              key={opt}
+              onClick={() => setMemberFilter(opt)}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                active
+                  ? "border-primary bg-gradient-primary text-primary-foreground shadow-glow"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {opt === "all" ? "Family" : opt}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Money Flow */}
       <MoneyFlowCard income={totals.income} expenses={totals.spent} saved={saved} />
 
