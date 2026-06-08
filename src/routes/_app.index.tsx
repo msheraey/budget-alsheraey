@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import {
   CATEGORIES, MONTHS, MEMBERS, categoryById, formatAED,
 } from "@/lib/categories";
-import { useTransactions, type Txn } from "@/lib/transactions-store";
+import { useTransactions, addTransaction, type Txn } from "@/lib/transactions-store";
 import {
   budgetsStore, debtsStore, goalsStore, billsStore, type Bill,
 } from "@/lib/finance-stores";
@@ -788,25 +788,59 @@ function SmallSavingsCard({ goal, balance, target, pct }: {
   );
 }
 
+function nextDueDate(from: string, recurring: string): string {
+  const d = new Date(from);
+  if (recurring === "weekly") d.setDate(d.getDate() + 7);
+  else if (recurring === "yearly") d.setFullYear(d.getFullYear() + 1);
+  else d.setMonth(d.getMonth() + 1); // monthly default
+  return d.toISOString().slice(0, 10);
+}
+
 function UpcomingBillsCard({ bills }: { bills: Bill[] }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [due, setDue] = useState(() => new Date().toISOString().slice(0, 10));
+  const [category, setCategory] = useState<string>("miscellaneous");
+  const [recurring, setRecurring] = useState<string>("none");
+
+  const expenseCats = CATEGORIES.filter((c) => c.group !== "income");
 
   async function add() {
     if (!name.trim() || !amount) return;
     try {
-      await billsStore.add({ name: name.trim(), amount: Number(amount), due_date: due });
-      setName(""); setAmount(""); setOpen(false);
+      await billsStore.add({
+        name: name.trim(),
+        amount: Number(amount),
+        due_date: due,
+        category,
+        recurring,
+      });
+      setName(""); setAmount(""); setCategory("miscellaneous"); setRecurring("none");
+      setOpen(false);
       toast.success("Bill added");
     } catch (e) {
       toast.error("Failed to add bill");
     }
   }
-  async function markPaid(id: string) {
-    try { await billsStore.update(id, { paid: true }); toast.success("Marked paid"); }
-    catch { toast.error("Failed"); }
+  async function markPaid(b: Bill) {
+    try {
+      await addTransaction({
+        category: b.category || "miscellaneous",
+        amount: Number(b.amount),
+        type: "expense",
+        occurred_on: new Date().toISOString().slice(0, 10),
+        note: "Bill: " + b.name,
+        added_by: "Mohammed",
+        payment_method: "Cash",
+      });
+      if (b.recurring && b.recurring !== "none") {
+        await billsStore.update(b.id, { due_date: nextDueDate(b.due_date, b.recurring), paid: false });
+      } else {
+        await billsStore.update(b.id, { paid: true });
+      }
+      toast.success("Marked paid");
+    } catch { toast.error("Failed"); }
   }
   async function del(id: string) {
     try { await billsStore.remove(id); toast.success("Deleted"); }
@@ -826,11 +860,28 @@ function UpcomingBillsCard({ bills }: { bills: Bill[] }) {
       </div>
 
       {open && (
-        <div className="mb-3 grid grid-cols-1 gap-2 rounded-xl bg-secondary/30 p-3 sm:grid-cols-[1fr_auto_auto_auto]">
-          <Input placeholder="Bill name" value={name} onChange={(e) => setName(e.target.value)} className="h-9" />
-          <Input placeholder="Amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9 sm:w-24" />
-          <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="h-9 sm:w-40" />
-          <Button size="sm" onClick={add} className="h-9">Save</Button>
+        <div className="mb-3 grid grid-cols-1 gap-2 rounded-xl bg-secondary/30 p-3 sm:grid-cols-2">
+          <Input placeholder="Bill name" value={name} onChange={(e) => setName(e.target.value)} className="h-9 sm:col-span-2" />
+          <Input placeholder="Amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9" />
+          <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="h-9" />
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="h-9"><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              {expenseCats.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={recurring} onValueChange={setRecurring}>
+            <SelectTrigger className="h-9"><SelectValue placeholder="Recurring" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="yearly">Yearly</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={add} className="h-9 sm:col-span-2">Save</Button>
         </div>
       )}
 
@@ -855,7 +906,7 @@ function UpcomingBillsCard({ bills }: { bills: Bill[] }) {
                   AED {formatAED(Number(b.amount))}
                 </p>
                 <button
-                  onClick={() => markPaid(b.id)}
+                  onClick={() => markPaid(b)}
                   className="rounded-md p-1.5 text-success hover:bg-success/15"
                   title="Mark paid"
                 >
@@ -876,6 +927,7 @@ function UpcomingBillsCard({ bills }: { bills: Bill[] }) {
     </section>
   );
 }
+
 
 function EmergencyFundCard({ savingsBalance, monthlyExpenses }: { savingsBalance: number; monthlyExpenses: number }) {
   const months = savingsBalance / Math.max(1, monthlyExpenses);
