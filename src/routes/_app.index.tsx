@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import {
   CATEGORIES, MONTHS, MEMBERS, categoryById, formatAED,
 } from "@/lib/categories";
-import { useTransactions, type Txn } from "@/lib/transactions-store";
+import { useTransactions, addTransaction, type Txn } from "@/lib/transactions-store";
 import {
   budgetsStore, debtsStore, goalsStore, billsStore, type Bill,
 } from "@/lib/finance-stores";
