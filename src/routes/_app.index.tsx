@@ -123,10 +123,12 @@ function Dashboard() {
   const expectedSpendByNow = (totals.totalBudget / daysInMonth) * dayOfMonth;
   const onTrack = totals.spent <= expectedSpendByNow;
 
-  // Forecast: project full-month spend at current pace
-  const dailyPace = dayOfMonth > 0 ? totals.spent / dayOfMonth : 0;
-  const forecastSpend = isCurrentMonth ? dailyPace * daysInMonth : totals.spent;
-  const forecastSavings = totals.income - forecastSpend;
+  // Forecast: variable categories project at daily pace; fixed/annual/CC/savings
+  // are taken at face value (max of MTD vs budget) so they don't get inflated.
+  const { forecastSpend, forecastSavings } = forecastByCategory({
+    byCat: totals.byCat, budgetFor, income: totals.income,
+    dayOfMonth, daysInMonth, isCurrentMonth,
+  });
 
   // Financial Health (simple 3-factor): adherence + savings rate + emergency
   const monthlyExpenses = Math.max(totals.spent, prevSpent, 1);
