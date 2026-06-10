@@ -18,6 +18,7 @@ import { useTransactions, addTransaction, type Txn } from "@/lib/transactions-st
 import {
   budgetsStore, debtsStore, goalsStore, billsStore, type Bill,
 } from "@/lib/finance-stores";
+import { forecastByCategory } from "@/lib/finance-math";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/")({
