@@ -145,7 +145,9 @@ function TransactionsPage() {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-card p-3 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-card p-3 sm:grid-cols-6">
+            <FilterSelect label="Group" value={fGroup} onChange={setFGroup}
+              options={[{ value: ANY, label: "All groups" }, ...GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))]} />
             <FilterSelect label="Category" value={fCategory} onChange={setFCategory}
               options={[{ value: ANY, label: "All categories" }, ...CATEGORIES.map((c) => ({ value: c.id, label: c.name }))]} />
             <FilterSelect label="Type" value={fType} onChange={setFType}
@@ -162,8 +164,21 @@ function TransactionsPage() {
                   return { value: m, label: `${MONTHS[mm - 1]} ${yy}` };
                 }),
               ]} />
+            {/* Parent-category quick chips */}
+            <div className="col-span-2 sm:col-span-6 -mt-1 flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setFGroup(ANY)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${fGroup === ANY ? "border-primary bg-gradient-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+              >All</button>
+              {GROUP_ORDER.map((g) => (
+                <button key={g}
+                  onClick={() => setFGroup(g)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${fGroup === g ? "border-primary bg-gradient-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+                >{GROUP_LABELS[g]}</button>
+              ))}
+            </div>
             {activeFilters > 0 && (
-              <Button variant="ghost" size="sm" className="col-span-2 h-8 text-xs sm:col-span-5" onClick={clearFilters}>
+              <Button variant="ghost" size="sm" className="col-span-2 h-8 text-xs sm:col-span-6" onClick={clearFilters}>
                 Clear all filters
               </Button>
             )}
