@@ -393,27 +393,9 @@ function Dashboard() {
         )}
       </section>
 
-      {/* Smart insights */}
-      {insights.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-accent" />
-            <h2 className="font-display text-lg font-semibold">Smart insights</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {insights.map((ins, i) => (
-              <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-card">
-                <div className="flex items-start gap-3">
-                  <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ins.bg}`}>
-                    <ins.icon className={`h-4 w-4 ${ins.fg}`} />
-                  </span>
-                  <p className="text-sm leading-relaxed text-foreground/90">{ins.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Upcoming bills */}
+      <UpcomingBillsCard bills={upcomingBills} />
+
 
       {/* Upcoming bills */}
       <UpcomingBillsCard bills={upcomingBills} />
