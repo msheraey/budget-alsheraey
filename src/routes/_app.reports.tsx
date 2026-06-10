@@ -237,6 +237,32 @@ function ChartsTab() {
     });
   }, [all, months]);
 
+  // Daily expenses across the selected range, with a "safe to spend" line.
+  const dailyExpenses = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of inRange) {
+      if (t.type !== "expense") continue;
+      map.set(t.occurred_on, (map.get(t.occurred_on) ?? 0) + Number(t.amount));
+    }
+    const out: { date: string; label: string; spent: number; safe: number }[] = [];
+    const totalBudget = totalBudgetFor(budgets);
+    // total days in range
+    const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
+    const safePerDay = totalBudget > 0 ? totalBudget / totalDays : 0;
+    const cur = new Date(start);
+    while (cur < end) {
+      const ds = toDateStr(cur);
+      out.push({
+        date: ds,
+        label: `${cur.getUTCDate()}/${cur.getUTCMonth() + 1}`,
+        spent: map.get(ds) ?? 0,
+        safe: Math.round(safePerDay),
+      });
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return out;
+  }, [inRange, budgets, sStr, eStr]);
+
   // Spending by group (donut)
   const byGroup = useMemo(() => {
     const map = new Map<string, number>();
