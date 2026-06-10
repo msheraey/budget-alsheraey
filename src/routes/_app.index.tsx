@@ -397,9 +397,6 @@ function Dashboard() {
       <UpcomingBillsCard bills={upcomingBills} />
 
 
-      {/* Upcoming bills */}
-      <UpcomingBillsCard bills={upcomingBills} />
-
       {/* Budget vs Actual */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
         <div className="mb-3 flex items-center justify-between">
