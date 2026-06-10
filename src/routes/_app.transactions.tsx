@@ -259,7 +259,8 @@ function TransactionsPage() {
                 })}
               </ul>
             </section>
-          ))}
+            );
+          })}
         </div>
       )}
 
