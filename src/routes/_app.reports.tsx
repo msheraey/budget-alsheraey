@@ -492,6 +492,33 @@ function ChartsTab() {
       </ChartCard>
 
       <ChartCard
+        title="Daily Expenses"
+        hint="What you spent each day vs your safe daily allowance. Bars above the line mean you went over for that day."
+        hasData={dailyExpenses.some((d) => d.spent > 0)}
+        emptyHint="No daily expenses logged in this period."
+      >
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={dailyExpenses} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={10} interval="preserveStartEnd" />
+            <YAxis stroke="var(--muted-foreground)" fontSize={11} width={48} />
+            <RTooltip contentStyle={tooltipStyle} formatter={(v: number, n: string) => [`AED ${formatAED(Number(v))}`, n === "spent" ? "Spent" : "Safe/day"]} />
+            <Bar dataKey="spent" radius={[6, 6, 0, 0]}>
+              {dailyExpenses.map((d, i) => (
+                <Cell key={i} fill={d.safe > 0 && d.spent > d.safe ? EXPENSE_HUE : SAVED_HUE} />
+              ))}
+            </Bar>
+            <Line type="monotone" dataKey="safe" stroke={INCOME_HUE} strokeWidth={2} strokeDasharray="4 4" dot={false} />
+          </BarChart>
+        </ResponsiveContainer>
+        <Swatches items={[
+          { name: "Under safe limit", color: SAVED_HUE },
+          { name: "Over safe limit", color: EXPENSE_HUE },
+          { name: "Safe to spend / day", color: INCOME_HUE },
+        ]} />
+      </ChartCard>
+
+      <ChartCard
         title="Net Cash Flow Over Time"
         hint="Whether you finish each month up or down, and which way it's trending."
         hasData={cashFlow.some((r) => r.income > 0 || r.expense > 0)}
