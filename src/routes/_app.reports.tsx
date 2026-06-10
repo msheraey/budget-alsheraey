@@ -499,7 +499,7 @@ function ChartsTab() {
         emptyHint="No daily expenses logged in this period."
       >
         <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={dailyExpenses} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+          <ComposedChart data={dailyExpenses} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={10} interval="preserveStartEnd" />
             <YAxis stroke="var(--muted-foreground)" fontSize={11} width={48} />
@@ -510,7 +510,7 @@ function ChartsTab() {
               ))}
             </Bar>
             <Line type="monotone" dataKey="safe" stroke={INCOME_HUE} strokeWidth={2} strokeDasharray="4 4" dot={false} />
-          </BarChart>
+          </ComposedChart>
         </ResponsiveContainer>
         <Swatches items={[
           { name: "Under safe limit", color: SAVED_HUE },
