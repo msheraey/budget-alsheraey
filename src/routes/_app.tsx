@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/app-header";
 import { SideNav } from "@/components/side-nav";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuroraBackground } from "@/components/aurora-background";
+import { AdvisorChat } from "@/components/advisor-chat";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -25,6 +26,7 @@ function AppLayout() {
           </main>
         </div>
         <QuickAddFab />
+        <AdvisorChat />
         <div className="lg:hidden">
           <BottomNav />
         </div>
