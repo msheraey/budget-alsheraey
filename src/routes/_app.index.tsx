@@ -179,10 +179,6 @@ function Dashboard() {
     .slice(0, 6);
 
   const recent = useMemo(() => all.slice(0, 6), [all]);
-  const insights = buildInsights({
-    totalSpend: totals.spent, prevSpent, byCat: totals.byCat,
-    budgetFor, savingsContrib: totals.savingsContrib, onTrack, daysLeft, remainingBudget,
-  });
 
   return (
     <div className="space-y-6 px-4 pt-6 sm:px-6">
