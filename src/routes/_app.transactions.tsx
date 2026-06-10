@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
 import {
-  CATEGORIES, MEMBERS, MONTHS, PAYMENT_METHODS,
+  CATEGORIES, MEMBERS, MONTHS, PAYMENT_METHODS, GROUP_LABELS, GROUP_ORDER,
   categoryById, formatAED,
 } from "@/lib/categories";
 import {
@@ -42,6 +42,7 @@ function TransactionsPage() {
   const [query, setQuery] = useState("");
   const [showFilters, setShowFilters] = useState<boolean>(!!search.category);
   const [fCategory, setFCategory] = useState<string>(search.category ?? ANY);
+  const [fGroup, setFGroup] = useState<string>(ANY);
   const [fType, setFType] = useState<string>(ANY);
   const [fUser, setFUser] = useState<string>(ANY);
   const [fPayment, setFPayment] = useState<string>(ANY);
@@ -57,6 +58,11 @@ function TransactionsPage() {
     const q = query.trim().toLowerCase();
     return txns.filter((t) => {
       if (fCategory !== ANY && t.category !== fCategory) return false;
+      if (fGroup !== ANY) {
+        const cat = categoryById(t.category);
+        const g = cat?.group ?? "other";
+        if (g !== fGroup) return false;
+      }
       if (fType !== ANY && t.type !== fType) return false;
       if (fUser !== ANY && (t.added_by ?? "") !== fUser) return false;
       if (fPayment !== ANY && (t.payment_method ?? "") !== fPayment) return false;
@@ -68,14 +74,14 @@ function TransactionsPage() {
       }
       return true;
     });
-  }, [txns, query, fCategory, fType, fUser, fPayment, fMonth]);
+  }, [txns, query, fCategory, fGroup, fType, fUser, fPayment, fMonth]);
 
   const activeFilters = [
-    fCategory !== ANY, fType !== ANY, fUser !== ANY, fPayment !== ANY, fMonth !== ANY,
+    fCategory !== ANY, fGroup !== ANY, fType !== ANY, fUser !== ANY, fPayment !== ANY, fMonth !== ANY,
   ].filter(Boolean).length;
 
   function clearFilters() {
-    setFCategory(ANY); setFType(ANY); setFUser(ANY); setFPayment(ANY); setFMonth(ANY);
+    setFCategory(ANY); setFGroup(ANY); setFType(ANY); setFUser(ANY); setFPayment(ANY); setFMonth(ANY);
   }
 
   const handleDelete = async (id: string) => {
@@ -139,7 +145,9 @@ function TransactionsPage() {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-card p-3 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-card p-3 sm:grid-cols-6">
+            <FilterSelect label="Group" value={fGroup} onChange={setFGroup}
+              options={[{ value: ANY, label: "All groups" }, ...GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))]} />
             <FilterSelect label="Category" value={fCategory} onChange={setFCategory}
               options={[{ value: ANY, label: "All categories" }, ...CATEGORIES.map((c) => ({ value: c.id, label: c.name }))]} />
             <FilterSelect label="Type" value={fType} onChange={setFType}
@@ -156,8 +164,21 @@ function TransactionsPage() {
                   return { value: m, label: `${MONTHS[mm - 1]} ${yy}` };
                 }),
               ]} />
+            {/* Parent-category quick chips */}
+            <div className="col-span-2 sm:col-span-6 -mt-1 flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setFGroup(ANY)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${fGroup === ANY ? "border-primary bg-gradient-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+              >All</button>
+              {GROUP_ORDER.map((g) => (
+                <button key={g}
+                  onClick={() => setFGroup(g)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${fGroup === g ? "border-primary bg-gradient-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+                >{GROUP_LABELS[g]}</button>
+              ))}
+            </div>
             {activeFilters > 0 && (
-              <Button variant="ghost" size="sm" className="col-span-2 h-8 text-xs sm:col-span-5" onClick={clearFilters}>
+              <Button variant="ghost" size="sm" className="col-span-2 h-8 text-xs sm:col-span-6" onClick={clearFilters}>
                 Clear all filters
               </Button>
             )}
@@ -178,11 +199,26 @@ function TransactionsPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          {groups.map(([dateStr, items]) => (
+          {groups.map(([dateStr, items]) => {
+            const dayExpense = items.reduce((s, t) => s + (t.type === "expense" ? Number(t.amount) : 0), 0);
+            const dayIncome = items.reduce((s, t) => s + (t.type === "income" ? Number(t.amount) : 0), 0);
+            const dayNet = dayIncome - dayExpense;
+            return (
             <section key={dateStr}>
-              <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
-                {formatGroupDate(dateStr)}
-              </p>
+              <div className="mb-2 flex items-baseline justify-between px-1">
+                <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+                  {formatGroupDate(dateStr)} <span className="ml-1 normal-case tracking-normal text-muted-foreground/70">· {items.length} item{items.length === 1 ? "" : "s"}</span>
+                </p>
+                <p className="text-[11px] tabular-nums">
+                  {dayIncome > 0 && <span className="text-success font-semibold">+{formatAED(dayIncome)} </span>}
+                  {dayExpense > 0 && <span className="text-foreground font-semibold">−{formatAED(dayExpense)}</span>}
+                  {dayExpense > 0 && dayIncome > 0 && (
+                    <span className={`ml-1.5 ${dayNet >= 0 ? "text-success" : "text-destructive"}`}>
+                      ({dayNet >= 0 ? "+" : "−"}{formatAED(Math.abs(dayNet))})
+                    </span>
+                  )}
+                </p>
+              </div>
               <ul className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
                 {items.map((t) => {
                   const cat = categoryById(t.category);
@@ -223,7 +259,8 @@ function TransactionsPage() {
                 })}
               </ul>
             </section>
-          ))}
+            );
+          })}
         </div>
       )}
 

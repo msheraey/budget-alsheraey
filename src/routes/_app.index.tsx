@@ -18,6 +18,7 @@ import { useTransactions, addTransaction, type Txn } from "@/lib/transactions-st
 import {
   budgetsStore, debtsStore, goalsStore, billsStore, type Bill,
 } from "@/lib/finance-stores";
+import { forecastByCategory } from "@/lib/finance-math";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/")({
@@ -122,10 +123,12 @@ function Dashboard() {
   const expectedSpendByNow = (totals.totalBudget / daysInMonth) * dayOfMonth;
   const onTrack = totals.spent <= expectedSpendByNow;
 
-  // Forecast: project full-month spend at current pace
-  const dailyPace = dayOfMonth > 0 ? totals.spent / dayOfMonth : 0;
-  const forecastSpend = isCurrentMonth ? dailyPace * daysInMonth : totals.spent;
-  const forecastSavings = totals.income - forecastSpend;
+  // Forecast: variable categories project at daily pace; fixed/annual/CC/savings
+  // are taken at face value (max of MTD vs budget) so they don't get inflated.
+  const { forecastSpend, forecastSavings } = forecastByCategory({
+    byCat: totals.byCat, budgetFor, income: totals.income,
+    dayOfMonth, daysInMonth, isCurrentMonth,
+  });
 
   // Financial Health (simple 3-factor): adherence + savings rate + emergency
   const monthlyExpenses = Math.max(totals.spent, prevSpent, 1);
@@ -176,10 +179,6 @@ function Dashboard() {
     .slice(0, 6);
 
   const recent = useMemo(() => all.slice(0, 6), [all]);
-  const insights = buildInsights({
-    totalSpend: totals.spent, prevSpent, byCat: totals.byCat,
-    budgetFor, savingsContrib: totals.savingsContrib, onTrack, daysLeft, remainingBudget,
-  });
 
   return (
     <div className="space-y-6 px-4 pt-6 sm:px-6">
@@ -394,30 +393,9 @@ function Dashboard() {
         )}
       </section>
 
-      {/* Smart insights */}
-      {insights.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-accent" />
-            <h2 className="font-display text-lg font-semibold">Smart insights</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {insights.map((ins, i) => (
-              <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-card">
-                <div className="flex items-start gap-3">
-                  <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ins.bg}`}>
-                    <ins.icon className={`h-4 w-4 ${ins.fg}`} />
-                  </span>
-                  <p className="text-sm leading-relaxed text-foreground/90">{ins.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Upcoming bills */}
       <UpcomingBillsCard bills={upcomingBills} />
+
 
       {/* Budget vs Actual */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
