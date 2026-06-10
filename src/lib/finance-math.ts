@@ -56,6 +56,48 @@ export function forecast(args: { spent: number; income: number; dayOfMonth: numb
   return { forecastSpend, forecastSavings };
 }
 
+// Groups whose spending is genuinely variable day-by-day. Fixed bills,
+// annual one-offs, credit-card balances and savings contributions don't
+// scale with daily pace, so we project them at face value (current MTD or
+// budgeted amount, whichever is higher) instead of multiplying by day count.
+export const VARIABLE_GROUPS = new Set(["transport","food","family","health","lifestyle","other"]);
+
+export function forecastByCategory(args: {
+  byCat: Map<string, number>;
+  budgetFor: (id: string) => number;
+  income: number;
+  dayOfMonth: number;
+  daysInMonth: number;
+  isCurrentMonth: boolean;
+}) {
+  let forecastSpend = 0;
+  let variableSpent = 0;
+  let variableProjected = 0;
+  let fixedProjected = 0;
+  for (const c of CATEGORIES) {
+    if (c.group === "income") continue;
+    const spent = args.byCat.get(c.id) ?? 0;
+    const budget = args.budgetFor(c.id);
+    if (VARIABLE_GROUPS.has(c.group)) {
+      const projected = args.isCurrentMonth && args.dayOfMonth > 0
+        ? (spent / args.dayOfMonth) * args.daysInMonth
+        : spent;
+      forecastSpend += projected;
+      variableSpent += spent;
+      variableProjected += projected;
+    } else {
+      // Fixed / annual / credit-cards / savings: don't extrapolate by day.
+      // Take whichever is higher: what's been spent so far or what's budgeted.
+      const projected = Math.max(spent, budget);
+      forecastSpend += projected;
+      fixedProjected += projected;
+    }
+  }
+  const forecastSavings = args.income - forecastSpend;
+  return { forecastSpend, forecastSavings, variableSpent, variableProjected, fixedProjected };
+}
+
+
 export function topSavingsGoalBalance(goals: SavingsGoal[]) {
   return goals.reduce((s, g) => s + Number(g.current_amount), 0);
 }
