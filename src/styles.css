@@ -304,9 +304,11 @@
   .tabular-nums { font-variant-numeric: tabular-nums; }
 }
 
-/* ---------- Glass + 3D interactive surfaces ---------- */
+/* ---------- Glass + lift surfaces (no scale → no text blur) ---------- */
 @layer utilities {
-  /* Upgrade every .shadow-card into a glassy 3D tile */
+  /* We intentionally avoid scale() and translateZ(0) here — both promote the
+     element to a GPU layer and combine with backdrop-filter blur, which makes
+     text look fuzzy on hover. Pure translateY keeps text crisp. */
   .shadow-card {
     position: relative;
     backdrop-filter: blur(18px) saturate(140%);
@@ -314,12 +316,10 @@
       var(--shadow-card),
       inset 0 1px 0 rgb(255 255 255 / 0.18),
       inset 0 -1px 0 rgb(0 0 0 / 0.12);
-    transform: translateZ(0);
     transition:
       transform .35s cubic-bezier(.2,.7,.2,1),
       box-shadow .35s cubic-bezier(.2,.7,.2,1),
       background-color .25s ease;
-    will-change: transform;
   }
   .shadow-card::before {
     content: "";
@@ -340,7 +340,7 @@
     opacity: .9;
   }
   .shadow-card:hover {
-    transform: translateY(-3px) scale(1.006);
+    transform: translateY(-3px);
     box-shadow:
       0 26px 60px -22px rgb(0 0 0 / 0.55),
       inset 0 1px 0 rgb(255 255 255 / 0.22),
@@ -353,10 +353,10 @@
     transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s ease;
   }
   .shadow-glow:hover {
-    transform: translateY(-2px) scale(1.005);
+    transform: translateY(-2px);
   }
 
-  button:active, [role="button"]:active { transform: translateY(1px) scale(.985); }
+  button:active, [role="button"]:active { transform: translateY(1px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
