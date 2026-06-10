@@ -42,6 +42,7 @@ function TransactionsPage() {
   const [query, setQuery] = useState("");
   const [showFilters, setShowFilters] = useState<boolean>(!!search.category);
   const [fCategory, setFCategory] = useState<string>(search.category ?? ANY);
+  const [fGroup, setFGroup] = useState<string>(ANY);
   const [fType, setFType] = useState<string>(ANY);
   const [fUser, setFUser] = useState<string>(ANY);
   const [fPayment, setFPayment] = useState<string>(ANY);
@@ -57,6 +58,11 @@ function TransactionsPage() {
     const q = query.trim().toLowerCase();
     return txns.filter((t) => {
       if (fCategory !== ANY && t.category !== fCategory) return false;
+      if (fGroup !== ANY) {
+        const cat = categoryById(t.category);
+        const g = cat?.group ?? "other";
+        if (g !== fGroup) return false;
+      }
       if (fType !== ANY && t.type !== fType) return false;
       if (fUser !== ANY && (t.added_by ?? "") !== fUser) return false;
       if (fPayment !== ANY && (t.payment_method ?? "") !== fPayment) return false;
@@ -68,14 +74,14 @@ function TransactionsPage() {
       }
       return true;
     });
-  }, [txns, query, fCategory, fType, fUser, fPayment, fMonth]);
+  }, [txns, query, fCategory, fGroup, fType, fUser, fPayment, fMonth]);
 
   const activeFilters = [
-    fCategory !== ANY, fType !== ANY, fUser !== ANY, fPayment !== ANY, fMonth !== ANY,
+    fCategory !== ANY, fGroup !== ANY, fType !== ANY, fUser !== ANY, fPayment !== ANY, fMonth !== ANY,
   ].filter(Boolean).length;
 
   function clearFilters() {
-    setFCategory(ANY); setFType(ANY); setFUser(ANY); setFPayment(ANY); setFMonth(ANY);
+    setFCategory(ANY); setFGroup(ANY); setFType(ANY); setFUser(ANY); setFPayment(ANY); setFMonth(ANY);
   }
 
   const handleDelete = async (id: string) => {
