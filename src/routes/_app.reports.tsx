@@ -914,6 +914,123 @@ function ForecastTab() {
           })}
         </ul>
       </div>
+
+      <AnnualForecastByCategory all={all} budgetFor={budgetFor} year={y} />
+    </div>
+  );
+}
+
+/* Annual forecast — each category × 12 vs YTD actual & projected annual.
+   Groups categories by their parent group so it reads like the Budget page. */
+function AnnualForecastByCategory({
+  all, budgetFor, year,
+}: { all: { occurred_on: string; type: string; amount: number; category: string }[]; budgetFor: (id: string) => number; year: number }) {
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year + 1}-01-01`;
+  const now = new Date();
+  const monthsElapsed = now.getUTCFullYear() === year
+    ? now.getUTCMonth() + 1
+    : now.getUTCFullYear() > year ? 12 : 0;
+
+  const ytd = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of all) {
+      if (t.occurred_on < yearStart || t.occurred_on >= yearEnd) continue;
+      if (t.type !== "expense") continue;
+      const id = categoryById(t.category) ? t.category : "miscellaneous";
+      m.set(id, (m.get(id) ?? 0) + Number(t.amount));
+    }
+    return m;
+  }, [all, yearStart, yearEnd]);
+
+  const rows = useMemo(() => {
+    return CATEGORIES.filter((c) => c.group !== "income").map((c) => {
+      const monthly = budgetFor(c.id);
+      const annualBudget = monthly * 12;
+      const actual = ytd.get(c.id) ?? 0;
+      const projected = monthsElapsed > 0 ? (actual / monthsElapsed) * 12 : 0;
+      const variance = annualBudget - projected;
+      return { id: c.id, name: c.name, group: c.group, monthly, annualBudget, actual, projected, variance };
+    });
+  }, [ytd, monthsElapsed]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof rows>();
+    for (const r of rows) {
+      if (!map.has(r.group)) map.set(r.group, []);
+      map.get(r.group)!.push(r);
+    }
+    return [...map.entries()];
+  }, [rows]);
+
+  const totals = rows.reduce(
+    (a, r) => ({
+      annualBudget: a.annualBudget + r.annualBudget,
+      actual: a.actual + r.actual,
+      projected: a.projected + r.projected,
+      variance: a.variance + r.variance,
+    }),
+    { annualBudget: 0, actual: 0, projected: 0, variance: 0 },
+  );
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <h3 className="font-display text-sm font-semibold">Annual forecast by category — {year}</h3>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{monthsElapsed}/12 mo</span>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Annual budget = monthly × 12. Projected = YTD actual ÷ months elapsed × 12. Variance: green = under, red = over.
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[560px] text-xs">
+          <thead>
+            <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+              <th className="py-2 pr-2">Category</th>
+              <th className="py-2 pr-2 text-right">Annual budget</th>
+              <th className="py-2 pr-2 text-right">YTD actual</th>
+              <th className="py-2 pr-2 text-right">Projected</th>
+              <th className="py-2 pr-2 text-right">Variance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {grouped.map(([group, items]) => (
+              <Fragment key={group}>
+                <tr className="border-t border-border bg-secondary/30">
+                  <td colSpan={5} className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {GROUP_LABELS[group as keyof typeof GROUP_LABELS] ?? group}
+                  </td>
+                </tr>
+                {items.map((r) => {
+                  const over = r.variance < 0;
+                  return (
+                    <tr key={r.id} className="border-t border-border">
+                      <td className="py-2 pr-2 font-medium">{r.name}</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">{formatAED(r.annualBudget)}</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">{formatAED(r.actual)}</td>
+                      <td className={`py-2 pr-2 text-right tabular-nums ${over ? "text-destructive font-semibold" : ""}`}>{formatAED(r.projected)}</td>
+                      <td className={`py-2 pr-2 text-right tabular-nums font-semibold ${over ? "text-destructive" : "text-success"}`}>
+                        {over ? "−" : "+"}{formatAED(Math.abs(r.variance))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            ))}
+            <tr className="border-t-2 border-border bg-secondary/40">
+              <td className="py-2 pr-2 font-semibold">Total</td>
+              <td className="py-2 pr-2 text-right tabular-nums font-semibold">{formatAED(totals.annualBudget)}</td>
+              <td className="py-2 pr-2 text-right tabular-nums font-semibold">{formatAED(totals.actual)}</td>
+              <td className={`py-2 pr-2 text-right tabular-nums font-semibold ${totals.variance < 0 ? "text-destructive" : ""}`}>
+                {formatAED(totals.projected)}
+              </td>
+              <td className={`py-2 pr-2 text-right tabular-nums font-semibold ${totals.variance < 0 ? "text-destructive" : "text-success"}`}>
+                {totals.variance < 0 ? "−" : "+"}{formatAED(Math.abs(totals.variance))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
